@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Channel Radar</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{--bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--line:#2a2f3a;--text:#e8eaf0;--mute:#8b93a7;--acc:#ff4d4d;--good:#2ecc71;--warn:#f5b041;--bad:#e74c3c;--blue:#4da3ff;--hdr:rgba(15,17,21,.94)}
 html[data-theme=light]{--bg:#f4f5f8;--panel:#ffffff;--panel2:#eef0f4;--line:#d9dde5;--text:#161a22;--mute:#5f6779;--good:#1e9e57;--warn:#b9770e;--bad:#d63031;--blue:#2b7de9;--hdr:rgba(244,245,248,.94)}
@@ -15,11 +16,9 @@ a{color:inherit;text-decoration:none}a:hover{text-decoration:underline}
 header{position:sticky;top:0;z-index:5;background:var(--hdr);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 .bar{max-width:1280px;margin:0 auto;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .logo{font-weight:800;font-size:18px;display:flex;align-items:center;gap:9px;margin-right:auto}
-.logo .dot{position:relative;width:12px;height:12px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 4px rgba(255,77,77,.2);animation:beat 1.4s ease-in-out infinite}
-.logo .dot::after{content:'';position:absolute;inset:0;border-radius:50%;background:var(--acc);animation:ping 1.4s ease-out infinite}
-@keyframes beat{0%,100%{transform:scale(1)}12%{transform:scale(1.35)}24%{transform:scale(1)}36%{transform:scale(1.25)}50%{transform:scale(1)}}
-@keyframes ping{0%{transform:scale(1);opacity:.55}70%,100%{transform:scale(3);opacity:0}}
-@media (prefers-reduced-motion:reduce){.logo .dot,.logo .dot::after{animation:none}}
+.logo .dot{position:relative;width:12px;height:12px;border-radius:50%;background:var(--acc);animation:beat .85s linear infinite}
+@keyframes beat{0%{transform:scale(1);box-shadow:0 0 0 3px rgba(255,77,77,.18)}8%{transform:scale(1.32);box-shadow:0 0 0 6px rgba(255,77,77,.3)}16%{transform:scale(1.05);box-shadow:0 0 0 4px rgba(255,77,77,.2)}24%{transform:scale(1.22);box-shadow:0 0 0 5px rgba(255,77,77,.26)}36%,100%{transform:scale(1);box-shadow:0 0 0 3px rgba(255,77,77,.18)}}
+@media (prefers-reduced-motion:reduce){.logo .dot{animation:none}}
 button,select,input,textarea{font:inherit;color:inherit}
 .btn{background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:9px;cursor:pointer;white-space:nowrap}
 .btn:hover{border-color:#3d4453}
@@ -100,6 +99,7 @@ hr{border:none;border-top:1px solid var(--line);margin:16px 0}
 @media (max-width:700px){.idea{grid-template-columns:1fr}}
 #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:10px 16px;border-radius:10px;display:none;z-index:30;max-width:90vw}
 #toast.err{border-color:var(--bad)}
+#syncBtn.ok{border-color:var(--good)}#syncBtn.warn{border-color:var(--warn);color:var(--warn)}#syncBtn.err{border-color:var(--bad);color:var(--bad)}
 @media (max-width:900px){
   .crow{grid-template-columns:1fr 1fr 1fr}
   .cname{grid-column:1/-1}
@@ -115,6 +115,7 @@ hr{border:none;border-top:1px solid var(--line);margin:16px 0}
     <button class="btn" data-a="add">+ Add channels</button>
     <button class="btn pri" data-a="refresh" id="refreshBtn">↻ Check now</button>
     <button class="btn" data-a="settings">Settings</button>
+    <button class="btn" data-a="sync" id="syncBtn">Connect Google</button>
     <button class="btn" data-a="theme" id="themeBtn">Light mode</button>
   </div>
   <div class="status">
@@ -207,6 +208,14 @@ hr{border:none;border-top:1px solid var(--line);margin:16px 0}
       </ol>
     </div>
     <div class="field">
+      <span>Google Drive sync (keeps your data safe and the same on every device)</span>
+      <div class="row">
+        <input type="text" id="gClient" style="flex:1" placeholder="Google OAuth Client ID (ends in .apps.googleusercontent.com)">
+        <button class="btn sm" data-a="gDisconnect">Disconnect</button>
+      </div>
+      <span id="gInfo" style="font-size:12px"></span>
+    </div>
+    <div class="field">
       <label class="row"><input type="checkbox" id="incShorts"> Include Shorts in the analysis</label>
       <label class="row" style="color:var(--mute);font-size:13px">Treat videos up to <input type="number" id="shortsMax" min="30" max="600" style="width:80px"> seconds as Shorts</label>
       <label class="row"><input type="checkbox" id="autoCheck"> Check automatically when opened (if last check was over 6 hours ago)</label>
@@ -234,12 +243,78 @@ hr{border:none;border-top:1px solid var(--line);margin:16px 0}
 const $=s=>document.querySelector(s);
 const LS='channelRadar.v1';
 const DAY=864e5, HOUR=36e5;
-const DEF={apiKey:'',groups:['General'],channels:{},lastCheck:0,quota:{day:'',used:0},includeShorts:false,shortsMax:180,autoCheck:true,theme:'dark',ideas:[],firstOut:{},visit:0,prevVisit:0,view:'hot',group:'__all',hotDays:'30',hotMin:'2',hotSort:'mult',chSort:'status'};
+const DEF={apiKey:'',groups:['General'],channels:{},lastCheck:0,quota:{day:'',used:0},includeShorts:false,shortsMax:180,autoCheck:true,theme:'dark',gClientId:'',gSigned:false,dataAt:0,ideas:[],firstOut:{},visit:0,prevVisit:0,view:'hot',group:'__all',hotDays:'30',hotMin:'2',hotSort:'mult',chSort:'status'};
 let S=Object.assign({},DEF,load());
 let busy=false;
 
 function load(){try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return {}}}
-function save(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){toast('Could not save: '+e.message,true)}}
+function sig(){return JSON.stringify([S.groups,S.channels,S.ideas,S.apiKey,S.includeShorts,S.shortsMax,S.autoCheck,S.lastCheck])}
+let lastSig=null;
+function save(){const g=sig();if(lastSig!==null&&g!==lastSig){S.dataAt=Date.now();G.dirty=true;scheduleSync()}lastSig=g;try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){toast('Could not save: '+e.message,true)}}
+
+/* ---------- Google Drive sync ---------- */
+const SCOPE='https://www.googleapis.com/auth/drive.appdata',FNAME='channel-radar.json';
+const LOCALONLY=['theme','view','group','hotDays','hotMin','hotSort','chSort','visit','prevVisit','firstOut'];
+let G={token:null,exp:0,client:null,fileId:null,pulled:false,dirty:false,timer:null,syncedAt:0};
+function setSync(state,txt){const b=$('#syncBtn');if(!b)return;b.className='btn'+(state?' '+state:'');b.textContent=txt;}
+function syncUI(){
+  if(!S.gClientId){setSync('','Connect Google');return}
+  if(!G.token||Date.now()>G.exp){setSync(S.gSigned?'warn':'',S.gSigned?(G.dirty?'Tap to sync (changes waiting)':'Tap to sync'):'Connect Google');return}
+  if(G.dirty){setSync('','Syncing…');return}
+  setSync('ok','Synced '+(G.syncedAt?ago(G.syncedAt):''));
+}
+function gReady(){return window.google&&google.accounts&&google.accounts.oauth2}
+function connect(){
+  if(!S.gClientId){openSettings();toast('Paste your Google Client ID in Settings first',true);return}
+  if(!gReady()){toast('Google sign-in is still loading. Try again in a moment.',true);return}
+  if(location.protocol==='file:'){toast('Google sign-in needs the page to be opened from its web address, not from a file',true);return}
+  if(!G.client)G.client=google.accounts.oauth2.initTokenClient({client_id:S.gClientId,scope:SCOPE,callback:r=>{
+    if(r.error){setSync('err','Sign-in failed');toast('Google sign-in failed: '+r.error,true);return}
+    G.token=r.access_token;G.exp=Date.now()+((+r.expires_in||3600)-120)*1000;S.gSigned=true;
+    try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}
+    afterToken();
+  }});
+  G.client.requestAccessToken({prompt:S.gSigned?'':'consent'});
+}
+async function gfetch(url,opt={}){
+  opt.headers=Object.assign({Authorization:'Bearer '+G.token},opt.headers||{});
+  const r=await fetch(url,opt);
+  if(r.status===401){G.token=null;throw new Error('expired')}
+  if(!r.ok){let m='Drive error '+r.status;try{const j=await r.json();if(j.error&&j.error.message)m=j.error.message}catch(e){}throw new Error(m)}
+  return r;
+}
+async function pull(){
+  const r=await gfetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,modifiedTime)&q='+encodeURIComponent("name='"+FNAME+"'"));
+  const f=((await r.json()).files||[])[0];if(!f){G.fileId=null;return null}
+  G.fileId=f.id;return await (await gfetch('https://www.googleapis.com/drive/v3/files/'+f.id+'?alt=media')).json();
+}
+async function push(){
+  const body=JSON.stringify(S);
+  if(G.fileId){await gfetch('https://www.googleapis.com/upload/drive/v3/files/'+G.fileId+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body});}
+  else{const b='crb'+Date.now();const mp='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify({name:FNAME,parents:['appDataFolder']})+'\r\n--'+b+'\r\nContent-Type: application/json\r\n\r\n'+body+'\r\n--'+b+'--';
+    const r=await gfetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:mp});G.fileId=(await r.json()).id;}
+  G.syncedAt=Date.now();
+}
+async function afterToken(){
+  try{
+    setSync('','Syncing…');
+    if(!G.pulled){
+      const remote=await pull();G.pulled=true;
+      const localHas=Object.keys(S.channels).length>0;
+      if(remote&&remote.channels&&(!localHas||(remote.dataAt||0)>(S.dataAt||0))){
+        const keep={};LOCALONLY.forEach(k=>keep[k]=S[k]);
+        S=Object.assign({},DEF,remote,keep,{gClientId:S.gClientId,gSigned:true});
+        lastSig=sig();try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}
+        G.syncedAt=Date.now();G.dirty=false;fillGroupSelects();render();toast('Loaded your data from Google Drive');
+      }else{await push();G.dirty=false;toast('Your data is saved to Google Drive')}
+    }else if(G.dirty){G.dirty=false;await push();}
+  }catch(e){
+    if(e.message==='expired'){G.token=null}else{G.dirty=true;setSync('err','Sync error');toast('Sync error: '+e.message,true);return}
+  }
+  syncUI();
+}
+function scheduleSync(){clearTimeout(G.timer);G.timer=setTimeout(()=>{if(G.token&&Date.now()<G.exp&&G.pulled)afterToken();else syncUI()},2500);syncUI()}
+window.addEventListener('beforeunload',e=>{if(G.dirty&&S.gSigned){e.preventDefault();e.returnValue=''}});
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fmt(n){if(n==null||isNaN(n))return '–';const a=Math.abs(n);if(a>=1e9)return (n/1e9).toFixed(a>=1e10?0:1)+'B';if(a>=1e6)return (n/1e6).toFixed(a>=1e7?0:1)+'M';if(a>=1e3)return (n/1e3).toFixed(a>=1e4?0:1)+'K';return Math.round(n).toString()}
 function ago(t){if(!t)return 'never';const d=Date.now()-t;if(d<HOUR)return Math.max(1,Math.round(d/6e4))+'m ago';if(d<DAY)return Math.round(d/HOUR)+'h ago';if(d<60*DAY)return Math.round(d/DAY)+'d ago';if(d<730*DAY)return Math.round(d/(30*DAY))+'mo ago';return Math.round(d/(365*DAY))+'y ago'}
@@ -525,9 +600,10 @@ function renderChannels(chans,ms){
 
 /* ---------- Settings ---------- */
 function openSettings(){
-  $('#apiKey').value=S.apiKey;$('#incShorts').checked=S.includeShorts;$('#shortsMax').value=S.shortsMax;$('#autoCheck').checked=S.autoCheck;
+  $('#apiKey').value=S.apiKey;$('#gClient').value=S.gClientId||'';gInfo();$('#incShorts').checked=S.includeShorts;$('#shortsMax').value=S.shortsMax;$('#autoCheck').checked=S.autoCheck;
   renderGroups();$('#setModal').classList.add('on');
 }
+function gInfo(){const el=$('#gInfo');if(!el)return;el.style.color='var(--mute)';el.textContent=!S.gClientId?'Not set up yet.':(G.token?'Connected. Changes save to your Google Drive automatically.':(S.gSigned?'Set up. Press "Tap to sync" at the top to connect this device.':'Client ID saved. Press "Connect Google" at the top to sign in.'))}
 function renderGroups(){
   $('#glist').innerHTML=S.groups.map(g=>{
     const n=Object.values(S.channels).filter(c=>c.group===g).length;
@@ -555,9 +631,11 @@ document.addEventListener('click',e=>{
   else if(a==='refresh'){const ids=groupChannels().map(c=>c.id);refresh(ids.length?ids:undefined)}
   else if(a==='settings')openSettings();
   else if(a==='theme'){S.theme=S.theme==='light'?'dark':'light';save();applyTheme()}
+  else if(a==='sync'){if(G.token&&Date.now()<G.exp){G.dirty=true;afterToken()}else connect()}
+  else if(a==='gDisconnect'){if(G.token&&gReady())google.accounts.oauth2.revoke(G.token,()=>{});G.token=null;G.client=null;G.pulled=false;S.gSigned=false;save();syncUI();gInfo();toast('Disconnected from Google. Your data is still in your Drive and in this browser.')}
   else if(a==='toggleKey'){const k=$('#apiKey');k.type=k.type==='password'?'text':'password';t.textContent=k.type==='password'?'Show':'Hide'}
   else if(a==='saveSettings'){
-    S.apiKey=$('#apiKey').value.trim();S.includeShorts=$('#incShorts').checked;
+    const nc=$('#gClient').value.trim();if(nc!==S.gClientId){S.gClientId=nc;G.client=null;G.token=null;G.pulled=false}S.apiKey=$('#apiKey').value.trim();S.includeShorts=$('#incShorts').checked;
     S.shortsMax=Math.max(30,Math.min(600,+$('#shortsMax').value||180));S.autoCheck=$('#autoCheck').checked;
     save();$('#setModal').classList.remove('on');render();toast('Settings saved');
   }
@@ -584,7 +662,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='apiKe
 
 function applyTheme(){document.documentElement.dataset.theme=S.theme==='light'?'light':'dark';$('#themeBtn').textContent=S.theme==='light'?'Dark mode':'Light mode'}
 S.prevVisit=S.visit||0;S.visit=Date.now();save();
-applyTheme();fillGroupSelects();render();
+applyTheme();fillGroupSelects();render();lastSig=sig();syncUI();setInterval(syncUI,30000);
 setInterval(()=>{$('#lastCheck').textContent=ago(S.lastCheck)},60000);
 if(S.autoCheck&&S.apiKey&&Object.keys(S.channels).length&&Date.now()-S.lastCheck>6*HOUR)refresh();
 </script>
