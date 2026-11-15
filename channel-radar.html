@@ -297,7 +297,7 @@ body.dense .grid{gap:12px}
           <summary>Firebase setup</summary>
           <p style="margin:6px 0 8px">Paste the firebaseConfig from your Firebase project (Project settings → Your apps). You only do this once per device.</p>
           <textarea id="fbCfg" rows="7" style="width:100%;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px" placeholder="const firebaseConfig = {&#10;  apiKey: &quot;...&quot;,&#10;  authDomain: &quot;...firebaseapp.com&quot;,&#10;  projectId: &quot;...&quot;,&#10;  appId: &quot;...&quot;&#10;};"></textarea>
-          <div class="row" style="margin-top:8px"><button class="btn sm pri" data-a="fbSave">Save config</button><button class="btn sm danger" data-a="fbClear">Remove config</button></div>
+          <div class="row" style="margin-top:8px"><button class="btn sm pri" data-a="fbSave">Save config</button><button class="btn sm danger" data-a="fbClear">Use built-in config</button></div>
         </details>
       </section>
 
@@ -420,6 +420,7 @@ function save(){const g=sig();if(lastSig!==null&&g!==lastSig){S.dataAt=Date.now(
 /* ---------- Cloud sync (Firebase) ---------- */
 const LOCALONLY=['theme','view','group','hotDays','hotMin','hotSort','chSort','visit','prevVisit','firstOut','accent','density','startView','fbConfig'];
 const SYNCED=['groups','ideas','apiKey','includeShorts','shortsMax','autoCheck','lastCheck','quota','dataAt'];
+const BUILTIN_FB={apiKey:"AIzaSyCUcWSe4LKZpVqG96BDtallNsodfRZ2xwM",authDomain:"channel-radar-56bad.firebaseapp.com",projectId:"channel-radar-56bad",storageBucket:"channel-radar-56bad.firebasestorage.app",messagingSenderId:"538687939348",appId:"1:538687939348:web:fff41506fabb9b08659801"};
 let FB={app:null,auth:null,db:null,user:null,ready:false,pulling:false,pushing:false,dirty:false,timer:null,syncedAt:0,hashes:{},unsub:null,err:''};
 function parseFbConfig(txt){
   txt=(txt||'').trim();if(!txt)return null;
@@ -877,7 +878,7 @@ document.addEventListener('click',e=>{
   else if(a==='fbSignIn')fbSignIn();
   else if(a==='fbSignOut'){if(FB.auth&&confirm('Sign out of cloud sync on this device? Your data stays in the cloud and in this browser.'))FB.auth.signOut().then(()=>toast('Signed out'))}
   else if(a==='fbSave'){const c=parseFbConfig($('#fbCfg').value);if(!c){toast('That doesn\u2019t look like a Firebase config. Paste the whole firebaseConfig block.',true);return}S.fbConfig=c;save();toast('Saved. Reloading…');setTimeout(()=>location.reload(),700)}
-  else if(a==='fbClear'){if(confirm('Remove the Firebase config from this device? Cloud sync will stop here.')){S.fbConfig=null;save();if(FB.auth)FB.auth.signOut().finally(()=>location.reload());else location.reload()}}
+  else if(a==='fbClear'){if(confirm('Go back to the built-in Firebase config on this device?')){S.fbConfig=BUILTIN_FB;save();if(FB.auth)FB.auth.signOut().finally(()=>location.reload());else location.reload()}}
   else if(a==='toggleKey'){const k=$('#apiKey');k.type=k.type==='password'?'text':'password';t.textContent=k.type==='password'?'Show':'Hide'}
   else if(a==='saveSettings'){
     S.apiKey=$('#apiKey').value.trim();S.includeShorts=$('#incShorts').checked;
@@ -927,7 +928,7 @@ if(!VIEWS[S.view]||S.view==='settings')S.view=S.view==='settings'?'settings':'ho
 save();
 applyTheme();fillGroupSelects();
 if(S.view==='settings')openSettings();else render();
-lastSig=sig();delete S.gClientId;delete S.gSigned;syncUI();fbInit();setInterval(syncUI,30000);
+if(!S.fbConfig)S.fbConfig=BUILTIN_FB;lastSig=sig();delete S.gClientId;delete S.gSigned;syncUI();fbInit();setInterval(syncUI,30000);
 setInterval(()=>{$('#lastCheck').textContent=ago(S.lastCheck)},60000);
 if(S.autoCheck&&S.apiKey&&Object.keys(S.channels).length&&Date.now()-S.lastCheck>6*HOUR)refresh();
 </script>
