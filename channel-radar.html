@@ -6,7 +6,9 @@
 <title>Channel Radar</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 :root{--bg:#0e1014;--panel:#161a20;--panel2:#1f242c;--line:#272d36;--text:#e8eaed;--mute:#a3acb8;--acc:#ff4d4d;--acc-ink:#fff;--good:#2ecc71;--warn:#f5b041;--bad:#e74c3c;--blue:#6ea8ff;--hdr:rgba(22,26,32,.96);--bar:#2a313b}
 html[data-theme=light]{--bg:#f5f6f8;--panel:#ffffff;--panel2:#eef0f3;--line:#e1e5ea;--text:#14171c;--mute:#566070;--good:#1e9e57;--warn:#b9770e;--bad:#d63031;--blue:#1d5fd6;--hdr:rgba(255,255,255,.96);--bar:#e2e6eb}
@@ -221,6 +223,7 @@ body.dense .grid{gap:12px}
     <span>Last check: <b id="lastCheck">never</b></span>
     <span class="hide-m">API quota today: <b id="quota">0</b> / 10,000</span>
     <button class="btn sm" data-a="refresh" id="refreshBtnM" style="display:none">Check now</button>
+    <span>Cloud: <b id="syncState">off</b></span>
     <span id="prog"></span>
   </div>
 </header>
@@ -287,13 +290,15 @@ body.dense .grid{gap:12px}
           </ol>
         </details>
         <div class="setrow">
-          <label class="lbl" for="gClient"><b>Google Drive sync</b><span id="gInfo">Keeps your data safe and the same on every device</span></label>
-          <div class="ctrl"><input type="text" id="gClient" placeholder="Google OAuth Client ID"><button class="btn sm" data-a="gDisconnect">Disconnect</button></div>
+          <div class="lbl"><b>Cloud sync</b><span id="fbStatus">Not set up yet</span></div>
+          <div class="ctrl"><button class="btn sm pri" data-a="fbSignIn" id="fbSignIn">Sign in with Google</button><button class="btn sm" data-a="fbSignOut" id="fbSignOut">Sign out</button></div>
         </div>
-        <div class="setrow">
-          <div class="lbl"><b>Sync now</b><span>Sign in with Google and save to your Drive</span></div>
-          <div class="ctrl"><button class="btn sm" data-a="sync" id="syncBtn">Connect Google</button></div>
-        </div>
+        <details id="fbSetup">
+          <summary>Firebase setup</summary>
+          <p style="margin:6px 0 8px">Paste the firebaseConfig from your Firebase project (Project settings → Your apps). You only do this once per device.</p>
+          <textarea id="fbCfg" rows="7" style="width:100%;resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px" placeholder="const firebaseConfig = {&#10;  apiKey: &quot;...&quot;,&#10;  authDomain: &quot;...firebaseapp.com&quot;,&#10;  projectId: &quot;...&quot;,&#10;  appId: &quot;...&quot;&#10;};"></textarea>
+          <div class="row" style="margin-top:8px"><button class="btn sm pri" data-a="fbSave">Save config</button><button class="btn sm danger" data-a="fbClear">Remove config</button></div>
+        </details>
       </section>
 
       <section class="sbox">
@@ -356,7 +361,7 @@ body.dense .grid{gap:12px}
           <div class="ctrl"><button class="btn sm" data-a="export">Export backup</button><button class="btn sm" data-a="import">Import backup</button><input type="file" id="importFile" accept=".json" style="display:none"></div>
         </div>
         <div class="setrow">
-          <div class="lbl"><b>Delete all data</b><span>Removes every channel, history and idea in this browser</span></div>
+          <div class="lbl"><b>Delete all data</b><span>Removes every channel, history and idea here and in the cloud</span></div>
           <div class="ctrl"><button class="btn sm danger" data-a="wipe">Delete all data</button></div>
         </div>
       </section>
@@ -402,7 +407,7 @@ body.dense .grid{gap:12px}
 const $=s=>document.querySelector(s);
 const LS='channelRadar.v1';
 const DAY=864e5, HOUR=36e5;
-const DEF={apiKey:'',groups:['General'],channels:{},lastCheck:0,quota:{day:'',used:0},includeShorts:false,shortsMax:180,autoCheck:true,theme:'dark',gClientId:'',gSigned:false,dataAt:0,ideas:[],firstOut:{},visit:0,prevVisit:0,view:'hot',group:'__all',hotDays:'30',hotMin:'2',hotSort:'mult',chSort:'status',accent:'red',density:'comfy',startView:'last'};
+const DEF={apiKey:'',groups:['General'],channels:{},lastCheck:0,quota:{day:'',used:0},includeShorts:false,shortsMax:180,autoCheck:true,theme:'dark',fbConfig:null,dataAt:0,ideas:[],firstOut:{},visit:0,prevVisit:0,view:'hot',group:'__all',hotDays:'30',hotMin:'2',hotSort:'mult',chSort:'status',accent:'red',density:'comfy',startView:'last'};
 const ACC={red:['#ff4d4d','#ffffff','Red'],orange:['#ff8a4c','#111111','Orange'],blue:['#4da3ff','#111111','Blue'],green:['#2ecc71','#111111','Green'],pink:['#f472b6','#111111','Pink'],yellow:['#facc15','#111111','Yellow']};
 let S=Object.assign({},DEF,load());
 let busy=false,Q='';
@@ -410,71 +415,112 @@ let busy=false,Q='';
 function load(){try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return {}}}
 function sig(){return JSON.stringify([S.groups,S.channels,S.ideas,S.apiKey,S.includeShorts,S.shortsMax,S.autoCheck,S.lastCheck])}
 let lastSig=null;
-function save(){const g=sig();if(lastSig!==null&&g!==lastSig){S.dataAt=Date.now();G.dirty=true;scheduleSync()}lastSig=g;try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){toast('Could not save: '+e.message,true)}}
+function save(){const g=sig();if(lastSig!==null&&g!==lastSig){S.dataAt=Date.now();FB.dirty=true;scheduleSync()}lastSig=g;try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){toast('Could not save: '+e.message,true)}}
 
-/* ---------- Google Drive sync ---------- */
-const SCOPE='https://www.googleapis.com/auth/drive.appdata',FNAME='channel-radar.json';
-const LOCALONLY=['theme','view','group','hotDays','hotMin','hotSort','chSort','visit','prevVisit','firstOut','accent','density','startView'];
-let G={token:null,exp:0,client:null,fileId:null,pulled:false,dirty:false,timer:null,syncedAt:0};
-function setSync(state,txt){const b=$('#syncBtn');if(!b)return;b.className='btn sm'+(state?' '+state:'');b.textContent=txt;}
-function syncUI(){
-  if(!S.gClientId){setSync('','Connect Google');return}
-  if(!G.token||Date.now()>G.exp){setSync(S.gSigned?'warn':'',S.gSigned?(G.dirty?'Tap to sync (changes waiting)':'Tap to sync'):'Connect Google');return}
-  if(G.dirty){setSync('','Syncing…');return}
-  setSync('ok','Synced '+(G.syncedAt?ago(G.syncedAt):''));
+/* ---------- Cloud sync (Firebase) ---------- */
+const LOCALONLY=['theme','view','group','hotDays','hotMin','hotSort','chSort','visit','prevVisit','firstOut','accent','density','startView','fbConfig'];
+const SYNCED=['groups','ideas','apiKey','includeShorts','shortsMax','autoCheck','lastCheck','quota','dataAt'];
+let FB={app:null,auth:null,db:null,user:null,ready:false,pulling:false,pushing:false,dirty:false,timer:null,syncedAt:0,hashes:{},unsub:null,err:''};
+function parseFbConfig(txt){
+  txt=(txt||'').trim();if(!txt)return null;
+  try{const j=JSON.parse(txt);if(j.apiKey&&j.projectId)return j}catch(e){}
+  const o={};['apiKey','authDomain','projectId','storageBucket','messagingSenderId','appId','measurementId'].forEach(k=>{const m=new RegExp(k+'\\s*:\\s*["\']([^"\']+)["\']').exec(txt);if(m)o[k]=m[1]});
+  return (o.apiKey&&o.authDomain&&o.projectId)?o:null;
 }
-function gReady(){return window.google&&google.accounts&&google.accounts.oauth2}
-function connect(){
-  if(!S.gClientId){openSettings();toast('Paste your Google Client ID in Settings first',true);return}
-  if(!gReady()){toast('Google sign-in is still loading. Try again in a moment.',true);return}
-  if(location.protocol==='file:'){toast('Google sign-in needs the page to be opened from its web address, not from a file',true);return}
-  if(!G.client)G.client=google.accounts.oauth2.initTokenClient({client_id:S.gClientId,scope:SCOPE,callback:r=>{
-    if(r.error){setSync('err','Sign-in failed');toast('Google sign-in failed: '+r.error,true);return}
-    G.token=r.access_token;G.exp=Date.now()+((+r.expires_in||3600)-120)*1000;S.gSigned=true;
-    try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}
-    afterToken();
-  }});
-  G.client.requestAccessToken({prompt:S.gSigned?'':'consent'});
+function fbMsg(e){
+  const c=(e&&e.code)||'';
+  if(c.includes('unauthorized-domain'))return 'This website isn’t allowed yet. In Firebase → Authentication → Settings → Authorized domains, add '+location.hostname;
+  if(c.includes('permission-denied'))return 'Firebase blocked access. Check your Firestore rules (see setup steps).';
+  if(c.includes('popup-closed')||c.includes('cancelled-popup'))return 'Sign-in window was closed';
+  if(c.includes('operation-not-allowed'))return 'Turn on Google sign-in in Firebase → Authentication → Sign-in method';
+  if(/not-found|failed-precondition/.test(c)&&/database/i.test(e.message||''))return 'Create the Firestore database in Firebase first';
+  return (e&&e.message)||String(e);
 }
-async function gfetch(url,opt={}){
-  opt.headers=Object.assign({Authorization:'Bearer '+G.token},opt.headers||{});
-  const r=await fetch(url,opt);
-  if(r.status===401){G.token=null;throw new Error('expired')}
-  if(!r.ok){let m='Drive error '+r.status;try{const j=await r.json();if(j.error&&j.error.message)m=j.error.message}catch(e){}throw new Error(m)}
-  return r;
-}
-async function pull(){
-  const r=await gfetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,modifiedTime)&q='+encodeURIComponent("name='"+FNAME+"'"));
-  const f=((await r.json()).files||[])[0];if(!f){G.fileId=null;return null}
-  G.fileId=f.id;return await (await gfetch('https://www.googleapis.com/drive/v3/files/'+f.id+'?alt=media')).json();
-}
-async function push(){
-  const body=JSON.stringify(S);
-  if(G.fileId){await gfetch('https://www.googleapis.com/upload/drive/v3/files/'+G.fileId+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body});}
-  else{const b='crb'+Date.now();const mp='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify({name:FNAME,parents:['appDataFolder']})+'\r\n--'+b+'\r\nContent-Type: application/json\r\n\r\n'+body+'\r\n--'+b+'--';
-    const r=await gfetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:mp});G.fileId=(await r.json()).id;}
-  G.syncedAt=Date.now();
-}
-async function afterToken(){
+function fbInit(){
+  if(FB.app||!S.fbConfig)return;
+  if(!window.firebase){FB.err='Sync library could not load (are you offline?)';syncUI();return}
   try{
-    setSync('','Syncing…');
-    if(!G.pulled){
-      const remote=await pull();G.pulled=true;
-      const localHas=Object.keys(S.channels).length>0;
-      if(remote&&remote.channels&&(!localHas||(remote.dataAt||0)>(S.dataAt||0))){
-        const keep={};LOCALONLY.forEach(k=>keep[k]=S[k]);
-        S=Object.assign({},DEF,remote,keep,{gClientId:S.gClientId,gSigned:true});
-        lastSig=sig();try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}
-        G.syncedAt=Date.now();G.dirty=false;fillGroupSelects();render();toast('Loaded your data from Google Drive');
-      }else{await push();G.dirty=false;toast('Your data is saved to Google Drive')}
-    }else if(G.dirty){G.dirty=false;await push();}
-  }catch(e){
-    if(e.message==='expired'){G.token=null}else{G.dirty=true;setSync('err','Sync error');toast('Sync error: '+e.message,true);return}
-  }
-  syncUI();gInfo();
+    FB.app=firebase.initializeApp(S.fbConfig);FB.auth=firebase.auth();FB.db=firebase.firestore();
+    FB.auth.getRedirectResult().catch(e=>{FB.err=fbMsg(e);toast('Sign-in failed: '+FB.err,true);syncUI()});
+    FB.auth.onAuthStateChanged(u=>{FB.user=u;FB.ready=false;if(FB.unsub){FB.unsub();FB.unsub=null}if(u)startSync();syncUI()});
+  }catch(e){FB.err=fbMsg(e);toast('Firebase error: '+FB.err,true)}
+  syncUI();
 }
-function scheduleSync(){clearTimeout(G.timer);G.timer=setTimeout(()=>{if(G.token&&Date.now()<G.exp&&G.pulled)afterToken();else syncUI()},2500);syncUI()}
-window.addEventListener('beforeunload',e=>{if(G.dirty&&S.gSigned){e.preventDefault();e.returnValue=''}});
+function userDoc(){return FB.db.collection('users').doc(FB.user.uid)}
+function chCol(){return userDoc().collection('channels')}
+function clean(o){return JSON.parse(JSON.stringify(o))}
+async function pullAll(){
+  const d=await userDoc().get();if(!d.exists)return null;
+  const qs=await chCol().get();const ch={};qs.forEach(x=>{ch[x.id]=x.data()});
+  return Object.assign({},d.data(),{channels:ch});
+}
+function applyRemote(r){
+  const keep={};LOCALONLY.forEach(k=>keep[k]=S[k]);
+  S=Object.assign({},DEF,r,keep);
+  FB.hashes={};for(const id in S.channels)FB.hashes[id]=JSON.stringify(S.channels[id]);
+  lastSig=sig();try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}
+  FB.syncedAt=Date.now();fillGroupSelects();renderGroups();
+  if(S.view==='settings')fillSettings();
+  render();
+}
+async function pushAll(force){
+  const ops=[];
+  for(const id in S.channels){const h=JSON.stringify(S.channels[id]);if(force||FB.hashes[id]!==h)ops.push(b=>b.set(chCol().doc(id),clean(S.channels[id])))}
+  for(const id in FB.hashes){if(!S.channels[id])ops.push(b=>b.delete(chCol().doc(id)))}
+  const main={};SYNCED.forEach(k=>main[k]=S[k]===undefined?null:S[k]);
+  ops.push(b=>b.set(userDoc(),clean(main)));
+  for(let i=0;i<ops.length;i+=400){const b=FB.db.batch();ops.slice(i,i+400).forEach(f=>f(b));await b.commit()}
+  FB.hashes={};for(const id in S.channels)FB.hashes[id]=JSON.stringify(S.channels[id]);
+  FB.syncedAt=Date.now();
+}
+async function startSync(){
+  FB.pulling=true;FB.err='';syncUI();
+  try{
+    const remote=await pullAll();
+    const localHas=Object.keys(S.channels).length>0;
+    if(remote&&(!localHas||(remote.dataAt||0)>(S.dataAt||0))){applyRemote(remote);toast('Loaded your data from the cloud')}
+    else{await pushAll(true);toast('Your data is now saved to the cloud')}
+    FB.dirty=false;FB.ready=true;listen();
+  }catch(e){FB.err=fbMsg(e);toast('Sync error: '+FB.err,true)}
+  FB.pulling=false;syncUI();
+}
+function listen(){
+  FB.unsub=userDoc().onSnapshot(snap=>{
+    if(!snap.exists||snap.metadata.hasPendingWrites||FB.dirty||FB.pushing)return;
+    const r=snap.data();
+    if((r.dataAt||0)>(S.dataAt||0))pullAll().then(rem=>{if(rem&&(rem.dataAt||0)>(S.dataAt||0)){applyRemote(rem);toast('Updated from your other device')}}).catch(e=>{FB.err=fbMsg(e);syncUI()});
+  },e=>{FB.err=fbMsg(e);syncUI()});
+}
+async function doPush(){
+  if(!FB.user||!FB.ready){syncUI();return}
+  if(FB.pushing){scheduleSync();return}
+  FB.pushing=true;FB.dirty=false;syncUI();
+  try{await pushAll(false);FB.err=''}catch(e){FB.dirty=true;FB.err=fbMsg(e);toast('Sync error: '+FB.err,true)}
+  FB.pushing=false;syncUI();
+}
+function scheduleSync(){clearTimeout(FB.timer);FB.timer=setTimeout(doPush,1500);syncUI()}
+function fbSignIn(){
+  if(!S.fbConfig){openSettings();$('#fbSetup').open=true;toast('Paste your Firebase config first',true);return}
+  if(!FB.auth){fbInit();if(!FB.auth)return}
+  const p=new firebase.auth.GoogleAuthProvider();
+  FB.auth.signInWithPopup(p).catch(e=>{
+    const c=e.code||'';
+    if(c.includes('popup-blocked')||c.includes('operation-not-supported'))FB.auth.signInWithRedirect(p);
+    else{FB.err=fbMsg(e);toast('Sign-in failed: '+FB.err,true);syncUI()}
+  });
+}
+function syncUI(){
+  let txt,st;
+  if(!S.fbConfig){txt='off';st='Not set up yet. Open "Firebase setup" below.'}
+  else if(!FB.user){txt='signed out';st='Set up. Sign in with Google to sync this device.'}
+  else if(FB.err){txt='error';st='Signed in as '+(FB.user.email||'you')+'. Problem: '+FB.err}
+  else if(FB.pulling||FB.pushing||FB.dirty){txt='saving…';st='Signed in as '+(FB.user.email||'you')+'. Saving…'}
+  else{txt='synced';st='Signed in as '+(FB.user.email||'you')+'. Changes save automatically'+(FB.syncedAt?' (last '+ago(FB.syncedAt)+')':'')+'.'}
+  const a=$('#syncState');if(a){a.textContent=txt;a.style.color=txt==='error'?'var(--bad)':txt==='synced'?'var(--good)':''}
+  const b=$('#fbStatus');if(b)b.textContent=st;
+  const i=$('#fbSignIn'),o=$('#fbSignOut');if(i)i.style.display=FB.user?'none':'';if(o)o.style.display=FB.user?'':'none';
+}
+window.addEventListener('beforeunload',e=>{if(FB.user&&(FB.dirty||FB.pushing)){e.preventDefault();e.returnValue=''}});
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function fmt(n){if(n==null||isNaN(n))return '–';const a=Math.abs(n);if(a>=1e9)return (n/1e9).toFixed(a>=1e10?0:1)+'B';if(a>=1e6)return (n/1e6).toFixed(a>=1e7?0:1)+'M';if(a>=1e3)return (n/1e3).toFixed(a>=1e4?0:1)+'K';return Math.round(n).toString()}
 function ago(t){if(!t)return 'never';const d=Date.now()-t;if(d<HOUR)return Math.max(1,Math.round(d/6e4))+'m ago';if(d<DAY)return Math.round(d/HOUR)+'h ago';if(d<60*DAY)return Math.round(d/DAY)+'d ago';if(d<730*DAY)return Math.round(d/(30*DAY))+'mo ago';return Math.round(d/(365*DAY))+'y ago'}
@@ -642,7 +688,7 @@ const VIEWS={
   hot:['Breakout videos',()=>'Videos beating their own channel’s normal views by '+S.hotMin+'x or more'],
   channels:['Channels',()=>'How every channel you track is doing'],
   ideas:['Ideas',()=>'Videos you saved, with your notes'],
-  settings:['Settings',()=>'Everything is saved in this browser, and in your Google Drive if sync is on']
+  settings:['Settings',()=>'Saved in this browser, and in the cloud when you\u2019re signed in']
 };
 function groupChannels(){return Object.values(S.channels).filter(c=>S.group==='__all'||c.group===S.group)}
 function matchQ(s){return !Q||String(s||'').toLowerCase().includes(Q)}
@@ -785,10 +831,12 @@ function renderChannels(chans,ms){
 
 /* ---------- Settings ---------- */
 function openSettings(){
-  $('#apiKey').value=S.apiKey;$('#gClient').value=S.gClientId||'';gInfo();$('#incShorts').checked=S.includeShorts;$('#shortsMax').value=S.shortsMax;$('#autoCheck').checked=S.autoCheck;
-  renderGroups();S.view='settings';save();render();window.scrollTo(0,0);
+  fillSettings();renderGroups();S.view='settings';save();render();window.scrollTo(0,0);
 }
-function gInfo(){const el=$('#gInfo');if(!el)return;el.textContent=!S.gClientId?'Not set up yet. Keeps your data the same on every device.':(G.token?'Connected. Changes save to your Google Drive automatically.':(S.gSigned?'Set up. Press the button below to connect this device.':'Client ID saved. Press the button below to sign in.'))}
+function fillSettings(){
+  $('#apiKey').value=S.apiKey;$('#incShorts').checked=S.includeShorts;$('#shortsMax').value=S.shortsMax;$('#autoCheck').checked=S.autoCheck;
+  $('#fbCfg').value=S.fbConfig?JSON.stringify(S.fbConfig,null,2):'';$('#fbSetup').open=!S.fbConfig;syncUI();
+}
 function renderGroups(){
   $('#glist').innerHTML=S.groups.map(g=>{
     const n=Object.values(S.channels).filter(c=>c.group===g).length;
@@ -826,20 +874,22 @@ document.addEventListener('click',e=>{
   else if(a==='newGroupChip'){const n=prompt('New group name');if(n)addGroup(n)}
   else if(a==='addGroup'){if(addGroup($('#ngName').value))$('#ngName').value=''}
   else if(a==='theme'){S.theme=S.theme==='light'?'dark':'light';save();applyTheme();markSegs()}
-  else if(a==='sync'){if(G.token&&Date.now()<G.exp){G.dirty=true;afterToken()}else connect()}
-  else if(a==='gDisconnect'){if(G.token&&gReady())google.accounts.oauth2.revoke(G.token,()=>{});G.token=null;G.client=null;G.pulled=false;S.gSigned=false;save();syncUI();gInfo();toast('Disconnected from Google. Your data is still in your Drive and in this browser.')}
+  else if(a==='fbSignIn')fbSignIn();
+  else if(a==='fbSignOut'){if(FB.auth&&confirm('Sign out of cloud sync on this device? Your data stays in the cloud and in this browser.'))FB.auth.signOut().then(()=>toast('Signed out'))}
+  else if(a==='fbSave'){const c=parseFbConfig($('#fbCfg').value);if(!c){toast('That doesn\u2019t look like a Firebase config. Paste the whole firebaseConfig block.',true);return}S.fbConfig=c;save();toast('Saved. Reloading…');setTimeout(()=>location.reload(),700)}
+  else if(a==='fbClear'){if(confirm('Remove the Firebase config from this device? Cloud sync will stop here.')){S.fbConfig=null;save();if(FB.auth)FB.auth.signOut().finally(()=>location.reload());else location.reload()}}
   else if(a==='toggleKey'){const k=$('#apiKey');k.type=k.type==='password'?'text':'password';t.textContent=k.type==='password'?'Show':'Hide'}
   else if(a==='saveSettings'){
-    const nc=$('#gClient').value.trim();if(nc!==S.gClientId){S.gClientId=nc;G.client=null;G.token=null;G.pulled=false}S.apiKey=$('#apiKey').value.trim();S.includeShorts=$('#incShorts').checked;
+    S.apiKey=$('#apiKey').value.trim();S.includeShorts=$('#incShorts').checked;
     S.shortsMax=Math.max(30,Math.min(600,+$('#shortsMax').value||180));S.autoCheck=$('#autoCheck').checked;
-    save();gInfo();syncUI();render();toast('Settings saved');
+    save();syncUI();render();toast('Settings saved');
   }
   else if(a==='export'){
     const b=new Blob([JSON.stringify(Object.assign({},S,{apiKey:''}),null,1)],{type:'application/json'});
     const l=document.createElement('a');l.href=URL.createObjectURL(b);l.download='channel-radar-backup-'+new Date().toISOString().slice(0,10)+'.json';l.click();
   }
   else if(a==='import')$('#importFile').click();
-  else if(a==='wipe'){if(confirm('Delete all channels, history and settings?')){const key=S.apiKey;S=Object.assign({},DEF,{apiKey:key,groups:['General'],channels:{},view:'settings'});save();fillGroupSelects();renderGroups();applyTheme();render()}}
+  else if(a==='wipe'){if(confirm('Delete all channels, history and settings?')){const key=S.apiKey;S=Object.assign({},DEF,{apiKey:key,fbConfig:S.fbConfig,groups:['General'],channels:{},view:'settings'});save();fillGroupSelects();renderGroups();applyTheme();render()}}
 });
 document.addEventListener('input',e=>{
   if(e.target.id==='q'){Q=e.target.value.trim().toLowerCase();render();return}
@@ -853,7 +903,7 @@ document.addEventListener('change',e=>{
   else if(t.id==='incShorts'||t.id==='autoCheck'){S[t.id==='incShorts'?'includeShorts':'autoCheck']=t.checked;save();render()}
   else if(t.id==='shortsMax'){S.shortsMax=Math.max(30,Math.min(600,+t.value||180));save();render()}
   else if(t.id==='importFile'&&t.files[0]){
-    const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.channels)throw 0;const key=S.apiKey;S=Object.assign({},DEF,d);if(!S.apiKey)S.apiKey=key;save();fillGroupSelects();renderGroups();applyTheme();render();toast('Backup imported')}catch(err){toast('That file is not a Channel Radar backup',true)}};
+    const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.channels)throw 0;const key=S.apiKey,cfg=S.fbConfig;S=Object.assign({},DEF,d);if(!S.apiKey)S.apiKey=key;if(!S.fbConfig)S.fbConfig=cfg;save();fillGroupSelects();renderGroups();applyTheme();render();toast('Backup imported')}catch(err){toast('That file is not a Channel Radar backup',true)}};
     r.readAsText(t.files[0]);t.value='';
   }
 });
@@ -877,7 +927,7 @@ if(!VIEWS[S.view]||S.view==='settings')S.view=S.view==='settings'?'settings':'ho
 save();
 applyTheme();fillGroupSelects();
 if(S.view==='settings')openSettings();else render();
-lastSig=sig();syncUI();setInterval(syncUI,30000);
+lastSig=sig();delete S.gClientId;delete S.gSigned;syncUI();fbInit();setInterval(syncUI,30000);
 setInterval(()=>{$('#lastCheck').textContent=ago(S.lastCheck)},60000);
 if(S.autoCheck&&S.apiKey&&Object.keys(S.channels).length&&Date.now()-S.lastCheck>6*HOUR)refresh();
 </script>
