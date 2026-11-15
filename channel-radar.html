@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Channel Radar</title>
+<style>
+:root{--bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--line:#2a2f3a;--text:#e8eaf0;--mute:#8b93a7;--acc:#ff4d4d;--good:#2ecc71;--warn:#f5b041;--bad:#e74c3c;--blue:#4da3ff;--hdr:rgba(15,17,21,.94)}
+html[data-theme=light]{--bg:#f4f5f8;--panel:#ffffff;--panel2:#eef0f4;--line:#d9dde5;--text:#161a22;--mute:#5f6779;--good:#1e9e57;--warn:#b9770e;--bad:#d63031;--blue:#2b7de9;--hdr:rgba(244,245,248,.94)}
+html[data-theme=light] .p-hot{color:#d63031}html[data-theme=light] .p-rising{color:#1e9e57}html[data-theme=light] .p-steady{color:#5f6779}html[data-theme=light] .p-cooling{color:#2b7de9}
+html[data-theme=light] .modal{background:rgba(20,24,32,.35)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:inherit;text-decoration:none}a:hover{text-decoration:underline}
+header{position:sticky;top:0;z-index:5;background:var(--hdr);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.bar{max-width:1280px;margin:0 auto;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.logo{font-weight:800;font-size:18px;display:flex;align-items:center;gap:9px;margin-right:auto}
+.logo .dot{position:relative;width:12px;height:12px;border-radius:50%;background:var(--acc);box-shadow:0 0 0 4px rgba(255,77,77,.2);animation:beat 1.4s ease-in-out infinite}
+.logo .dot::after{content:'';position:absolute;inset:0;border-radius:50%;background:var(--acc);animation:ping 1.4s ease-out infinite}
+@keyframes beat{0%,100%{transform:scale(1)}12%{transform:scale(1.35)}24%{transform:scale(1)}36%{transform:scale(1.25)}50%{transform:scale(1)}}
+@keyframes ping{0%{transform:scale(1);opacity:.55}70%,100%{transform:scale(3);opacity:0}}
+@media (prefers-reduced-motion:reduce){.logo .dot,.logo .dot::after{animation:none}}
+button,select,input,textarea{font:inherit;color:inherit}
+.btn{background:var(--panel2);border:1px solid var(--line);padding:8px 14px;border-radius:9px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:#3d4453}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn.danger{color:#ff8a80}
+.btn:disabled{opacity:.5;cursor:default}
+select,input[type=text],input[type=password],input[type=number],textarea{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none}
+select:focus,input:focus,textarea:focus{border-color:var(--blue)}
+main{max-width:1280px;margin:0 auto;padding:16px}
+.status{max-width:1280px;margin:0 auto;padding:0 16px 10px;color:var(--mute);font-size:13px;display:flex;gap:16px;flex-wrap:wrap}
+.status b{color:var(--text);font-weight:600}
+#prog{color:var(--warn)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.stat .k{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.stat .v{font-size:22px;font-weight:800;margin-top:2px}
+.tabs{display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid var(--line)}
+.tab{background:none;border:none;padding:10px 14px;cursor:pointer;color:var(--mute);border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:600}
+.tab.on{color:var(--text);border-bottom-color:var(--acc)}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;color:var(--mute);font-size:13px}
+.controls label{display:flex;align-items:center;gap:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.vcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.thumb{position:relative;aspect-ratio:16/9;background:#000;display:block}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.mult{position:absolute;top:8px;left:8px;font-weight:800;padding:3px 9px;border-radius:7px;color:#fff;font-size:14px}
+.age{position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.8);padding:2px 7px;border-radius:5px;font-size:12px}
+.vbody{padding:10px 12px 12px;display:flex;flex-direction:column;gap:6px;flex:1}
+.vtitle{font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.vch{color:var(--mute);font-size:13px;display:flex;align-items:center;gap:6px}
+.vch img{width:18px;height:18px;border-radius:50%}
+.vmeta{display:flex;gap:12px;font-size:13px;color:var(--mute);margin-top:auto;flex-wrap:wrap}
+.vmeta b{color:var(--text)}
+.clist{display:flex;flex-direction:column;gap:10px}
+.crow{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:minmax(220px,1.6fr) repeat(5,minmax(90px,1fr)) auto;gap:12px;align-items:center}
+.cname{display:flex;align-items:center;gap:10px;min-width:0}
+.cname img{width:40px;height:40px;border-radius:50%;background:var(--panel2);flex:none}
+.cname .t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cname .h{color:var(--mute);font-size:12px}
+.cell .k{color:var(--mute);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.cell .v{font-weight:700}
+.up{color:var(--good)}.down{color:var(--bad)}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:12px;font-weight:700}
+.p-hot{background:rgba(255,77,77,.18);color:#ff7b7b}
+.p-rising{background:rgba(46,204,113,.16);color:#5ee69a}
+.p-steady{background:rgba(139,147,167,.16);color:#b5bccb}
+.p-cooling{background:rgba(77,163,255,.15);color:#7dbbff}
+.p-inactive{background:rgba(245,176,65,.14);color:var(--warn)}
+.p-nodata{background:rgba(139,147,167,.12);color:var(--mute)}
+.cact{display:flex;gap:6px;align-items:center}
+.cact select{padding:5px 8px;font-size:13px;max-width:140px}
+.empty{background:var(--panel);border:1px dashed var(--line);border-radius:12px;padding:32px;text-align:center;color:var(--mute)}
+.empty h3{color:var(--text);margin:0 0 6px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;justify-content:center;z-index:20;padding:20px 16px;overflow:auto}
+.modal.on{display:flex}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:100%;max-width:560px;padding:20px;max-height:calc(100vh - 40px);overflow-y:auto}
+.box .foot.stick{position:sticky;bottom:-20px;background:var(--panel);padding:12px 0 4px;margin-bottom:-4px;border-top:1px solid var(--line)}
+.box h2{margin:0 0 4px;font-size:18px}
+.box p.sub{margin:0 0 14px;color:var(--mute);font-size:13px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field>span{font-size:13px;color:var(--mute)}
+textarea{min-height:150px;resize:vertical;width:100%}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.foot{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+.log{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px;font-size:13px;max-height:160px;overflow:auto;white-space:pre-wrap;display:none;margin-bottom:12px}
+.help{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:13px;color:var(--mute);margin-bottom:14px}
+.help ol{margin:6px 0 0;padding-left:18px}
+.glist{display:flex;flex-direction:column;gap:6px}
+.gitem{display:flex;justify-content:space-between;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+hr{border:none;border-top:1px solid var(--line);margin:16px 0}
+.new{position:absolute;top:8px;right:8px;background:var(--acc);color:#fff;font-weight:800;font-size:11px;letter-spacing:.06em;padding:3px 8px;border-radius:6px}
+.vfoot{display:flex;justify-content:flex-end;margin-top:4px}
+.ilist{display:flex;flex-direction:column;gap:12px}
+.idea{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;grid-template-columns:220px 1fr auto;gap:14px;align-items:start}
+.idea .thumb{border-radius:8px;overflow:hidden}
+.idea textarea{min-height:70px;margin-top:8px}
+@media (max-width:700px){.idea{grid-template-columns:1fr}}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--line);padding:10px 16px;border-radius:10px;display:none;z-index:30;max-width:90vw}
+#toast.err{border-color:var(--bad)}
+@media (max-width:900px){
+  .crow{grid-template-columns:1fr 1fr 1fr}
+  .cname{grid-column:1/-1}
+  .cact{grid-column:1/-1;justify-content:flex-end}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="logo"><span class="dot"></span>Channel Radar</div>
+    <select id="groupSel" title="Watchlist group"></select>
+    <button class="btn" data-a="add">+ Add channels</button>
+    <button class="btn pri" data-a="refresh" id="refreshBtn">↻ Check now</button>
+    <button class="btn" data-a="settings">Settings</button>
+    <button class="btn" data-a="theme" id="themeBtn">Light mode</button>
+  </div>
+  <div class="status">
+    <span>Last check: <b id="lastCheck">never</b></span>
+    <span>API quota today: <b id="quota">0</b> / 10,000</span>
+    <span id="prog"></span>
+  </div>
+</header>
+
+<main>
+  <div class="stats" id="stats"></div>
+  <div class="tabs">
+    <button class="tab" data-tab="hot">Outlier videos</button>
+    <button class="tab" data-tab="channels">Channels</button>
+    <button class="tab" data-tab="ideas" id="ideasTab">Ideas</button>
+  </div>
+
+  <div id="hotView">
+    <div class="controls">
+      <label>Posted in last
+        <select id="hotDays"><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="3650">All fetched</option></select>
+      </label>
+      <label>At least
+        <select id="hotMin"><option value="1.5">1.5×</option><option value="2">2×</option><option value="3">3×</option><option value="5">5×</option><option value="10">10×</option></select>
+        their normal views
+      </label>
+      <label>Sort
+        <select id="hotSort"><option value="mult">Biggest outlier</option><option value="vph">Views per hour</option><option value="views">Most views</option><option value="new">Newest</option></select>
+      </label>
+    </div>
+    <div id="hotList"></div>
+  </div>
+
+  <div id="chView">
+    <div class="controls">
+      <label>Sort
+        <select id="chSort"><option value="status">Doing best</option><option value="best">Biggest recent outlier</option><option value="mom">Momentum</option><option value="growth">Sub growth (7d)</option><option value="subs">Subscribers</option><option value="median">Typical views</option><option value="name">Name</option></select>
+      </label>
+    </div>
+    <div id="chList"></div>
+  </div>
+
+  <div id="ideasView">
+    <div id="ideaList"></div>
+  </div>
+</main>
+
+<!-- Add channels -->
+<div class="modal" id="addModal">
+  <div class="box">
+    <h2>Add channels</h2>
+    <p class="sub">Paste one per line: channel links, @handles, channel IDs, or a link to any of their videos.</p>
+    <div class="field">
+      <textarea id="addInput" placeholder="https://www.youtube.com/@channelname&#10;@anotherchannel&#10;UCxxxxxxxxxxxxxxxxxxxxxx&#10;https://youtu.be/VIDEOID"></textarea>
+    </div>
+    <div class="field">
+      <span>Add to group</span>
+      <div class="row">
+        <select id="addGroup"></select>
+        <input type="text" id="newGroup" placeholder="New group name" style="display:none;flex:1">
+      </div>
+    </div>
+    <div class="log" id="addLog"></div>
+    <div class="foot">
+      <button class="btn" data-a="close">Close</button>
+      <button class="btn pri" data-a="doAdd" id="doAddBtn">Add & check</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="modal" id="setModal">
+  <div class="box">
+    <h2>Settings</h2>
+    <p class="sub">Everything is saved in this browser only.</p>
+    <div class="field">
+      <span>YouTube Data API key</span>
+      <div class="row">
+        <input type="password" id="apiKey" style="flex:1" placeholder="AIza...">
+        <button class="btn sm" data-a="toggleKey">Show</button>
+        <button class="btn sm pri" data-a="saveSettings">Save</button>
+      </div>
+    </div>
+    <div class="help">
+      <b style="color:var(--text)">Getting a free key</b>
+      <ol>
+        <li>Go to console.cloud.google.com and create a project.</li>
+        <li>Open "APIs &amp; Services" → Library → enable <b>YouTube Data API v3</b>.</li>
+        <li>Credentials → Create credentials → API key. Paste it above.</li>
+      </ol>
+    </div>
+    <div class="field">
+      <label class="row"><input type="checkbox" id="incShorts"> Include Shorts in the analysis</label>
+      <label class="row" style="color:var(--mute);font-size:13px">Treat videos up to <input type="number" id="shortsMax" min="30" max="600" style="width:80px"> seconds as Shorts</label>
+      <label class="row"><input type="checkbox" id="autoCheck"> Check automatically when opened (if last check was over 6 hours ago)</label>
+    </div>
+    <div class="field">
+      <span>Groups</span>
+      <div class="glist" id="glist"></div>
+    </div>
+    <hr>
+    <div class="row">
+      <button class="btn sm" data-a="export">Export backup</button>
+      <button class="btn sm" data-a="import">Import backup</button>
+      <input type="file" id="importFile" accept=".json" style="display:none">
+      <button class="btn sm danger" data-a="wipe" style="margin-left:auto">Delete all data</button>
+    </div>
+    <div class="foot stick" style="margin-top:16px">
+      <button class="btn pri" data-a="saveSettings">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const LS='channelRadar.v1';
+const DAY=864e5, HOUR=36e5;
+const DEF={apiKey:'',groups:['General'],channels:{},lastCheck:0,quota:{day:'',used:0},includeShorts:false,shortsMax:180,autoCheck:true,theme:'dark',ideas:[],firstOut:{},visit:0,prevVisit:0,view:'hot',group:'__all',hotDays:'30',hotMin:'2',hotSort:'mult',chSort:'status'};
+let S=Object.assign({},DEF,load());
+let busy=false;
+
+function load(){try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return {}}}
+function save(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){toast('Could not save: '+e.message,true)}}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function fmt(n){if(n==null||isNaN(n))return '–';const a=Math.abs(n);if(a>=1e9)return (n/1e9).toFixed(a>=1e10?0:1)+'B';if(a>=1e6)return (n/1e6).toFixed(a>=1e7?0:1)+'M';if(a>=1e3)return (n/1e3).toFixed(a>=1e4?0:1)+'K';return Math.round(n).toString()}
+function ago(t){if(!t)return 'never';const d=Date.now()-t;if(d<HOUR)return Math.max(1,Math.round(d/6e4))+'m ago';if(d<DAY)return Math.round(d/HOUR)+'h ago';if(d<60*DAY)return Math.round(d/DAY)+'d ago';if(d<730*DAY)return Math.round(d/(30*DAY))+'mo ago';return Math.round(d/(365*DAY))+'y ago'}
+function median(a){if(!a.length)return 0;const s=[...a].sort((x,y)=>x-y);const m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2}
+function dur(iso){const m=/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(iso||'');if(!m)return 0;return (+m[1]||0)*86400+(+m[2]||0)*3600+(+m[3]||0)*60+(+m[4]||0)}
+function ptDay(){return new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'})}
+function addQuota(n){const d=ptDay();if(S.quota.day!==d)S.quota={day:d,used:0};S.quota.used+=n}
+let toastT;function toast(msg,err){const t=$('#toast');t.textContent=msg;t.className=err?'err':'';t.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>t.style.display='none',err?6000:3000)}
+function prog(msg){$('#prog').textContent=msg||''}
+
+async function api(path,params,cost=1){
+  const q=new URLSearchParams(Object.assign({},params,{key:S.apiKey}));
+  const r=await fetch('https://www.googleapis.com/youtube/v3/'+path+'?'+q);
+  addQuota(cost);
+  let j;try{j=await r.json()}catch(e){throw new Error('Bad response from YouTube')}
+  if(j.error)throw new Error(j.error.message||'API error');
+  return j;
+}
+async function pool(items,n,fn){let i=0;const w=Array.from({length:Math.min(n,items.length)},async()=>{while(i<items.length){const k=i++;await fn(items[k],k)}});await Promise.all(w)}
+
+/* ---------- Adding channels ---------- */
+function parseEntry(s){
+  s=s.trim();if(!s)return null;let m;
+  if(m=s.match(/(UC[\w-]{22})/))return{type:'id',v:m[1]};
+  if(m=s.match(/youtube\.com\/@([^\/?#\s]+)/i))return{type:'handle',v:'@'+decodeURIComponent(m[1])};
+  if(m=s.match(/^@([^\s\/]+)$/))return{type:'handle',v:s};
+  if(m=s.match(/youtube\.com\/user\/([^\/?#\s]+)/i))return{type:'user',v:m[1]};
+  if(m=s.match(/youtube\.com\/c\/([^\/?#\s]+)/i))return{type:'search',v:decodeURIComponent(m[1])};
+  if(m=s.match(/(?:[?&]v=|youtu\.be\/|\/shorts\/|\/live\/)([\w-]{11})/))return{type:'video',v:m[1]};
+  if(/^[\w.-]+$/.test(s))return{type:'handle',v:'@'+s,fallback:true};
+  return{type:'search',v:s};
+}
+async function resolve(p){
+  if(p.type==='id')return p.v;
+  if(p.type==='handle'){const j=await api('channels',{part:'id',forHandle:p.v});if(j.items&&j.items[0])return j.items[0].id;if(p.fallback)return resolve({type:'search',v:p.v.slice(1)});return null}
+  if(p.type==='user'){const j=await api('channels',{part:'id',forUsername:p.v});if(j.items&&j.items[0])return j.items[0].id;return resolve({type:'search',v:p.v})}
+  if(p.type==='video'){const j=await api('videos',{part:'snippet',id:p.v});return j.items&&j.items[0]?j.items[0].snippet.channelId:null}
+  if(p.type==='search'){const j=await api('search',{part:'snippet',type:'channel',q:p.v,maxResults:1},100);return j.items&&j.items[0]?j.items[0].snippet.channelId:null}
+  return null;
+}
+async function doAdd(){
+  const lines=$('#addInput').value.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
+  if(!lines.length){toast('Paste at least one channel',true);return}
+  if(!S.apiKey){toast('Add your API key in Settings first',true);return}
+  let group=$('#addGroup').value;
+  if(group==='__new'){group=$('#newGroup').value.trim();if(!group){toast('Give the new group a name',true);return}if(!S.groups.includes(group))S.groups.push(group)}
+  const btn=$('#doAddBtn');btn.disabled=true;btn.textContent='Finding channels…';
+  const log=[],ids=new Set(),logEl=$('#addLog');logEl.style.display='block';logEl.textContent='Working…';
+  for(const raw of lines){
+    const p=parseEntry(raw);if(!p)continue;
+    try{const id=await resolve(p);if(id)ids.add(id);else log.push('✗ Not found: '+raw)}
+    catch(e){log.push('✗ '+raw+' — '+e.message)}
+  }
+  const newIds=[];
+  for(const id of ids){
+    if(S.channels[id]){log.push('• Already tracked: '+(S.channels[id].title||id));continue}
+    S.channels[id]={id,group,added:Date.now(),hist:[],vids:[]};newIds.push(id);
+  }
+  save();
+  if(newIds.length){
+    btn.textContent='Checking stats…';
+    await refresh(newIds);
+    newIds.forEach(id=>{const c=S.channels[id];if(c.missing){log.push('✗ No channel with ID '+id);delete S.channels[id]}else log.push('✓ Added: '+c.title)});
+    save();render();
+  }
+  logEl.textContent=log.join('\n')||'Nothing new to add.';
+  $('#addInput').value='';
+  btn.disabled=false;btn.textContent='Add & check';
+  fillGroupSelects();
+}
+
+/* ---------- Refreshing data ---------- */
+async function refresh(ids){
+  if(busy)return;
+  if(!S.apiKey){openSettings();toast('Add your API key first',true);return}
+  ids=ids||Object.keys(S.channels);
+  if(!ids.length){toast('Add some channels first');return}
+  busy=true;$('#refreshBtn').disabled=true;
+  try{
+    prog('Fetching channel stats…');
+    for(let i=0;i<ids.length;i+=50){
+      const chunk=ids.slice(i,i+50);
+      const j=await api('channels',{part:'snippet,statistics,contentDetails',id:chunk.join(','),maxResults:50});
+      const now=Date.now(),got=new Set();
+      for(const it of j.items||[]){
+        const c=S.channels[it.id];if(!c)continue;got.add(it.id);
+        c.title=it.snippet.title;c.handle=it.snippet.customUrl||'';
+        c.thumb=((it.snippet.thumbnails||{}).default||{}).url||'';
+        c.uploads=it.contentDetails.relatedPlaylists.uploads;
+        const st=it.statistics;
+        const snap={t:now,s:st.hiddenSubscriberCount?null:+st.subscriberCount,v:+st.viewCount,n:+st.videoCount};
+        c.stats=snap;c.hist=c.hist||[];
+        const last=c.hist[c.hist.length-1];
+        if(last&&now-last.t<3*HOUR)c.hist[c.hist.length-1]=snap;else c.hist.push(snap);
+        if(c.hist.length>150)c.hist=c.hist.slice(-150);
+        c.missing=false;
+      }
+      chunk.forEach(id=>{if(!got.has(id)&&S.channels[id])S.channels[id].missing=true});
+    }
+    const withUp=ids.filter(id=>S.channels[id]&&S.channels[id].uploads&&!S.channels[id].missing);
+    const vidMap={};let done=0;
+    prog('Fetching recent uploads…');
+    await pool(withUp,6,async id=>{
+      try{const j=await api('playlistItems',{part:'contentDetails',playlistId:S.channels[id].uploads,maxResults:30});vidMap[id]=(j.items||[]).map(x=>x.contentDetails.videoId)}
+      catch(e){vidMap[id]=null}
+      prog('Fetching recent uploads… '+(++done)+'/'+withUp.length);
+    });
+    const all=[].concat(...Object.values(vidMap).filter(Boolean));
+    const info={};
+    for(let i=0;i<all.length;i+=50){
+      prog('Fetching video stats… '+Math.min(i+50,all.length)+'/'+all.length);
+      const j=await api('videos',{part:'snippet,statistics,contentDetails',id:all.slice(i,i+50).join(','),maxResults:50});
+      for(const v of j.items||[]){
+        if(v.snippet.liveBroadcastContent==='upcoming')continue;
+        info[v.id]={id:v.id,t:v.snippet.title,p:Date.parse(v.snippet.publishedAt),v:+(v.statistics.viewCount||0),l:+(v.statistics.likeCount||0),c:+(v.statistics.commentCount||0),d:dur(v.contentDetails.duration)};
+      }
+    }
+    for(const id in vidMap){
+      if(!vidMap[id])continue;
+      const c=S.channels[id];
+      c.vids=vidMap[id].map(x=>info[x]).filter(Boolean).sort((a,b)=>b.p-a.p);
+      c.checked=Date.now();
+    }
+    S.lastCheck=Date.now();save();
+    toast('Checked '+ids.length+' channel'+(ids.length>1?'s':''));
+  }catch(e){toast('Error: '+e.message,true);save()}
+  busy=false;$('#refreshBtn').disabled=false;prog('');render();
+}
+
+/* ---------- Analysis ---------- */
+function vidsOf(c){return (c.vids||[]).filter(v=>S.includeShorts||v.d>S.shortsMax)}
+function metrics(c){
+  const vs=vidsOf(c),now=Date.now();
+  const mature=vs.filter(v=>now-v.p>3*DAY);
+  const base=median((mature.length>=3?mature:vs).map(v=>v.v));
+  const rec=mature.slice(0,5),old=mature.slice(5);
+  const oldMed=median(old.map(v=>v.v));
+  const mom=(rec.length>=3&&old.length>=3&&oldMed>0)?median(rec.map(v=>v.v))/oldMed:null;
+  const last30=vs.filter(v=>now-v.p<30*DAY);
+  const upw=last30.length*7/30;
+  let best=null;
+  if(base)for(const v of last30){const m=v.v/base;if(!best||m>best.m)best={v,m}}
+  let g7=null;const cur=c.stats,h=c.hist||[];
+  if(cur&&cur.s!=null){
+    const target=now-7*DAY;let ref=null;
+    for(const x of h){if(x.t<=now-DAY&&x.s!=null&&(!ref||Math.abs(x.t-target)<Math.abs(ref.t-target)))ref=x}
+    if(ref)g7={abs:cur.s-ref.s,pct:ref.s?(cur.s-ref.s)/ref.s*100:0,days:Math.round((now-ref.t)/DAY)};
+  }
+  const lastUp=(c.vids&&c.vids[0])?c.vids[0].p:null;
+  let st='steady';
+  if(!vs.length)st='nodata';
+  else if(lastUp&&now-lastUp>60*DAY)st='inactive';
+  else if((best&&best.m>=5)||(mom&&mom>=1.6))st='hot';
+  else if((best&&best.m>=2.5)||(mom&&mom>=1.2))st='rising';
+  else if(mom&&mom<0.7)st='cooling';
+  return{base,mom,upw,best,g7,lastUp,st};
+}
+const RANK={hot:4,rising:3,steady:2,cooling:1,inactive:0,nodata:-1};
+const LABEL={hot:'Hot',rising:'↗ Rising',steady:'Steady',cooling:'↘ Cooling',inactive:'Inactive',nodata:'No data yet'};
+function multColor(m){return m>=10?'#c0392b':m>=5?'#e74c3c':m>=3?'#e67e22':'#d4a017'}
+
+/* ---------- Rendering ---------- */
+function groupChannels(){return Object.values(S.channels).filter(c=>S.group==='__all'||c.group===S.group)}
+function fillGroupSelects(){
+  const gs=$('#groupSel');
+  gs.innerHTML='<option value="__all">All groups</option>'+S.groups.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('');
+  if(S.group!=='__all'&&!S.groups.includes(S.group))S.group='__all';
+  gs.value=S.group;
+  const ag=$('#addGroup');const keep=ag.value;
+  ag.innerHTML=S.groups.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('')+'<option value="__new">+ New group…</option>';
+  ag.value=(keep&&(S.groups.includes(keep)||keep==='__new'))?keep:(S.group!=='__all'?S.group:S.groups[0]);
+  $('#newGroup').style.display=ag.value==='__new'?'block':'none';
+}
+function render(){
+  $('#lastCheck').textContent=ago(S.lastCheck);
+  $('#quota').textContent=(S.quota.day===ptDay()?S.quota.used:0).toLocaleString();
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===S.view));
+  $('#hotView').style.display=S.view==='hot'?'block':'none';
+  $('#chView').style.display=S.view==='channels'?'block':'none';
+  $('#ideasView').style.display=S.view==='ideas'?'block':'none';
+  $('#ideasTab').textContent='Ideas'+(S.ideas.length?' ('+S.ideas.length+')':'');
+  $('#hotDays').value=S.hotDays;$('#hotMin').value=S.hotMin;$('#hotSort').value=S.hotSort;$('#chSort').value=S.chSort;
+  const chans=groupChannels();
+  const ms=new Map(chans.map(c=>[c.id,metrics(c)]));
+  const hotRows=hotVideos(chans,ms);
+  let ch=false;for(const r of hotRows){if(!S.firstOut[r.v.id]){S.firstOut[r.v.id]=Date.now();ch=true}}if(ch)save();
+  const newN=hotRows.filter(isNew).length;
+  const hotCh=[...ms.values()].filter(m=>m.st==='hot').length;
+  const risingCh=[...ms.values()].filter(m=>m.st==='rising').length;
+  $('#stats').innerHTML=[
+    ['Channels tracked',chans.length],
+    ['Hot right now',hotCh],
+    ['Rising',risingCh],
+    ['Outlier videos',hotRows.length],
+    ['New since last visit',newN]
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  if(S.view==='hot')renderHot(hotRows,chans);else if(S.view==='ideas')renderIdeas();else renderChannels(chans,ms);
+}
+function hotVideos(chans,ms){
+  const now=Date.now(),days=+S.hotDays,min=+S.hotMin,rows=[];
+  for(const c of chans){
+    const m=ms.get(c.id);if(!m||!m.base)continue;
+    for(const v of vidsOf(c)){
+      if(now-v.p>days*DAY)continue;
+      const mult=v.v/m.base;if(mult<min)continue;
+      rows.push({c,v,mult,vph:v.v/Math.max(1,(now-v.p)/HOUR)});
+    }
+  }
+  const k=S.hotSort;
+  rows.sort((a,b)=>k==='vph'?b.vph-a.vph:k==='views'?b.v.v-a.v.v:k==='new'?b.v.p-a.v.p:b.mult-a.mult);
+  return rows;
+}
+let ROWS={};
+function isNew(r){return S.prevVisit>0&&(S.firstOut[r.v.id]||0)>S.prevVisit}
+function isSaved(id){return S.ideas.some(i=>i.id===id)}
+function renderIdeas(){
+  const el=$('#ideaList');
+  if(!S.ideas.length){el.innerHTML='<div class="empty"><h3>No saved ideas yet</h3>Press "Save idea" on any outlier video to collect it here with your own notes.</div>';return}
+  el.innerHTML='<div class="ilist">'+[...S.ideas].sort((a,b)=>b.saved-a.saved).map(i=>{const url='https://www.youtube.com/watch?v='+i.id;return `<div class="idea">
+    <a class="thumb" href="${url}" target="_blank" rel="noopener"><img loading="lazy" src="https://i.ytimg.com/vi/${i.id}/mqdefault.jpg" alt=""></a>
+    <div style="min-width:0"><a class="vtitle" href="${url}" target="_blank" rel="noopener">${esc(i.t)}</a>
+      <div class="vmeta" style="margin-top:4px"><span>${esc(i.ch)}</span><span><b>${fmt(i.v)}</b> views</span><span><b>${i.mult>=10?Math.round(i.mult):(+i.mult).toFixed(1)}×</b> their normal</span><span>saved ${ago(i.saved)}</span></div>
+      <textarea data-note="${i.id}" placeholder="Your notes, e.g. how to do this for your channel">${esc(i.note||'')}</textarea></div>
+    <button class="btn sm danger" data-delidea="${i.id}">Remove</button></div>`}).join('')+'</div>';
+}
+function emptyState(){
+  if(!S.apiKey)return `<div class="empty"><h3>Add your YouTube API key to start</h3>It's free and takes a couple of minutes.<br><br><button class="btn pri" data-a="settings">Open settings</button></div>`;
+  return `<div class="empty"><h3>No channels in this watchlist yet</h3>Paste competitor channel links and Channel Radar will flag who's doing well.<br><br><button class="btn pri" data-a="add">+ Add channels</button></div>`;
+}
+function renderHot(rows,chans){
+  const el=$('#hotList');
+  if(!chans.length){el.innerHTML=emptyState();return}
+  if(!rows.length){el.innerHTML=`<div class="empty"><h3>No outliers with these filters</h3>Try a longer time window or a lower multiplier${S.lastCheck?'':', or press Check now'}.</div>`;return}
+  ROWS={};rows.forEach(r=>ROWS[r.v.id]=r);
+  el.innerHTML='<div class="grid">'+rows.slice(0,200).map(r=>{
+    const url='https://www.youtube.com/watch?v='+r.v.id;
+    const young=Date.now()-r.v.p<3*DAY;
+    return `<div class="vcard">
+      <a class="thumb" href="${url}" target="_blank" rel="noopener"><img loading="lazy" src="https://i.ytimg.com/vi/${r.v.id}/mqdefault.jpg" alt="">
+        <span class="mult" style="background:${multColor(r.mult)}">${r.mult>=10?Math.round(r.mult):r.mult.toFixed(1)}×</span>
+        <span class="age">${ago(r.v.p)}${young?' · early':''}</span>${isNew(r)?'<span class="new">NEW</span>':''}</a>
+      <div class="vbody">
+        <a class="vtitle" href="${url}" target="_blank" rel="noopener">${esc(r.v.t)}</a>
+        <div class="vch">${r.c.thumb?`<img src="${esc(r.c.thumb)}" alt="">`:''}${esc(r.c.title||r.c.id)}</div>
+        <div class="vmeta"><span><b>${fmt(r.v.v)}</b> views</span><span><b>${fmt(r.vph)}</b>/hr</span><span>usual ${fmt(r.v.v/r.mult)}</span></div>
+        <div class="vfoot"><button class="btn sm${isSaved(r.v.id)?' pri':''}" data-save="${r.v.id}">${isSaved(r.v.id)?'Saved':'Save idea'}</button></div>
+      </div></div>`;
+  }).join('')+'</div>';
+}
+function renderChannels(chans,ms){
+  const el=$('#chList');
+  if(!chans.length){el.innerHTML=emptyState();return}
+  const k=S.chSort;
+  const list=[...chans].sort((a,b)=>{
+    const A=ms.get(a.id),B=ms.get(b.id);
+    if(k==='name')return (a.title||'').localeCompare(b.title||'');
+    if(k==='subs')return ((b.stats||{}).s||0)-((a.stats||{}).s||0);
+    if(k==='median')return B.base-A.base;
+    if(k==='mom')return (B.mom||0)-(A.mom||0);
+    if(k==='best')return ((B.best||{}).m||0)-((A.best||{}).m||0);
+    if(k==='growth')return ((B.g7||{}).pct||-1e9)-((A.g7||{}).pct||-1e9);
+    return (RANK[B.st]-RANK[A.st])||(((B.best||{}).m||0)-((A.best||{}).m||0));
+  });
+  el.innerHTML='<div class="clist">'+list.map(c=>{
+    const m=ms.get(c.id),url='https://www.youtube.com/channel/'+c.id;
+    const g=m.g7?`<span class="${m.g7.abs>=0?'up':'down'}">${m.g7.abs>=0?'+':''}${fmt(m.g7.abs)}</span> <span style="color:var(--mute);font-weight:400;font-size:12px">${m.g7.pct.toFixed(1)}% · ${m.g7.days}d</span>`:'<span style="color:var(--mute);font-weight:400;font-size:12px">needs 2+ days of checks</span>';
+    const mom=m.mom==null?'–':`<span class="${m.mom>=1?'up':'down'}">${m.mom.toFixed(2)}×</span>`;
+    const best=m.best?`<a href="https://www.youtube.com/watch?v=${m.best.v.id}" target="_blank" rel="noopener" title="${esc(m.best.v.t)}">${m.best.m.toFixed(1)}×</a>`:'–';
+    const opts=S.groups.map(gr=>`<option value="${esc(gr)}"${gr===c.group?' selected':''}>${esc(gr)}</option>`).join('');
+    return `<div class="crow">
+      <div class="cname">${c.thumb?`<img src="${esc(c.thumb)}" alt="">`:'<img alt="">'}<div style="min-width:0">
+        <div class="t"><a href="${url}" target="_blank" rel="noopener">${esc(c.title||c.id)}</a></div>
+        <div class="h"><span class="pill p-${m.st}">${LABEL[m.st]}</span> ${esc(c.handle||'')} ${c.missing?'<span class="down">· not found</span>':''}</div></div></div>
+      <div class="cell"><div class="k">Subscribers</div><div class="v">${c.stats&&c.stats.s!=null?fmt(c.stats.s):'hidden'}</div></div>
+      <div class="cell"><div class="k">Subs gained</div><div class="v">${g}</div></div>
+      <div class="cell"><div class="k">Typical views</div><div class="v">${fmt(m.base)}</div></div>
+      <div class="cell"><div class="k">Momentum</div><div class="v">${mom}</div></div>
+      <div class="cell"><div class="k">Best (30d) · uploads</div><div class="v">${best} <span style="color:var(--mute);font-weight:400;font-size:12px">· ${m.upw.toFixed(1)}/wk · last ${ago(m.lastUp)}</span></div></div>
+      <div class="cact"><select data-move="${c.id}" title="Move to group">${opts}</select><button class="btn sm danger" data-remove="${c.id}" title="Remove">✕</button></div>
+    </div>`;
+  }).join('')+'</div>';
+}
+
+/* ---------- Settings ---------- */
+function openSettings(){
+  $('#apiKey').value=S.apiKey;$('#incShorts').checked=S.includeShorts;$('#shortsMax').value=S.shortsMax;$('#autoCheck').checked=S.autoCheck;
+  renderGroups();$('#setModal').classList.add('on');
+}
+function renderGroups(){
+  $('#glist').innerHTML=S.groups.map(g=>{
+    const n=Object.values(S.channels).filter(c=>c.group===g).length;
+    return `<div class="gitem"><span>${esc(g)} <span style="color:var(--mute)">(${n})</span></span>${S.groups.length>1?`<button class="btn sm danger" data-delgroup="${esc(g)}">Delete</button>`:''}</div>`;
+  }).join('');
+}
+
+/* ---------- Events ---------- */
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-a],[data-tab],[data-remove],[data-delgroup],[data-save],[data-delidea]');
+  if(!t){if(e.target.classList.contains('modal'))e.target.classList.remove('on');return}
+  if(t.dataset.tab){S.view=t.dataset.tab;save();render();return}
+  if(t.dataset.save){const id=t.dataset.save;if(isSaved(id)){S.ideas=S.ideas.filter(i=>i.id!==id);toast('Removed from ideas')}else{const r=ROWS[id];if(r){S.ideas.push({id,t:r.v.t,ch:r.c.title||'',v:r.v.v,mult:r.mult,saved:Date.now(),note:''});toast('Saved to Ideas')}}save();render();return}
+  if(t.dataset.delidea){if(confirm('Remove this idea and its notes?')){S.ideas=S.ideas.filter(i=>i.id!==t.dataset.delidea);save();render()}return}
+  if(t.dataset.remove){const c=S.channels[t.dataset.remove];if(confirm('Remove '+(c.title||c.id)+'?')){delete S.channels[t.dataset.remove];save();render()}return}
+  if(t.dataset.delgroup){
+    const g=t.dataset.delgroup;if(!confirm('Delete group "'+g+'"? Its channels move to "'+S.groups.find(x=>x!==g)+'".'))return;
+    S.groups=S.groups.filter(x=>x!==g);Object.values(S.channels).forEach(c=>{if(c.group===g)c.group=S.groups[0]});
+    save();renderGroups();fillGroupSelects();render();return;
+  }
+  const a=t.dataset.a;
+  if(a==='add'){fillGroupSelects();$('#addLog').style.display='none';$('#addModal').classList.add('on');setTimeout(()=>$('#addInput').focus(),50)}
+  else if(a==='close'){t.closest('.modal').classList.remove('on')}
+  else if(a==='doAdd')doAdd();
+  else if(a==='refresh'){const ids=groupChannels().map(c=>c.id);refresh(ids.length?ids:undefined)}
+  else if(a==='settings')openSettings();
+  else if(a==='theme'){S.theme=S.theme==='light'?'dark':'light';save();applyTheme()}
+  else if(a==='toggleKey'){const k=$('#apiKey');k.type=k.type==='password'?'text':'password';t.textContent=k.type==='password'?'Show':'Hide'}
+  else if(a==='saveSettings'){
+    S.apiKey=$('#apiKey').value.trim();S.includeShorts=$('#incShorts').checked;
+    S.shortsMax=Math.max(30,Math.min(600,+$('#shortsMax').value||180));S.autoCheck=$('#autoCheck').checked;
+    save();$('#setModal').classList.remove('on');render();toast('Settings saved');
+  }
+  else if(a==='export'){
+    const b=new Blob([JSON.stringify(Object.assign({},S,{apiKey:''}),null,1)],{type:'application/json'});
+    const l=document.createElement('a');l.href=URL.createObjectURL(b);l.download='channel-radar-backup-'+new Date().toISOString().slice(0,10)+'.json';l.click();
+  }
+  else if(a==='import')$('#importFile').click();
+  else if(a==='wipe'){if(confirm('Delete all channels, history and settings?')){const key=S.apiKey;S=Object.assign({},DEF,{apiKey:key,groups:['General'],channels:{}});save();fillGroupSelects();renderGroups();render()}}
+});
+document.addEventListener('input',e=>{const id=e.target.dataset&&e.target.dataset.note;if(id){const i=S.ideas.find(x=>x.id===id);if(i){i.note=e.target.value;save()}}});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.dataset.move){S.channels[t.dataset.move].group=t.value;save();render();return}
+  if(t.id==='groupSel'){S.group=t.value;save();render()}
+  else if(t.id==='addGroup'){$('#newGroup').style.display=t.value==='__new'?'block':'none';if(t.value==='__new')$('#newGroup').focus()}
+  else if(['hotDays','hotMin','hotSort','chSort'].includes(t.id)){S[t.id]=t.value;save();render()}
+  else if(t.id==='importFile'&&t.files[0]){
+    const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.channels)throw 0;const key=S.apiKey;S=Object.assign({},DEF,d);if(!S.apiKey)S.apiKey=key;save();fillGroupSelects();renderGroups();render();toast('Backup imported')}catch(err){toast('That file is not a Channel Radar backup',true)}};
+    r.readAsText(t.files[0]);t.value='';
+  }
+});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='apiKey'){document.querySelector('[data-a=saveSettings]').click();return}if(e.key==='Escape')document.querySelectorAll('.modal.on').forEach(m=>m.classList.remove('on'))});
+
+function applyTheme(){document.documentElement.dataset.theme=S.theme==='light'?'light':'dark';$('#themeBtn').textContent=S.theme==='light'?'Dark mode':'Light mode'}
+S.prevVisit=S.visit||0;S.visit=Date.now();save();
+applyTheme();fillGroupSelects();render();
+setInterval(()=>{$('#lastCheck').textContent=ago(S.lastCheck)},60000);
+if(S.autoCheck&&S.apiKey&&Object.keys(S.channels).length&&Date.now()-S.lastCheck>6*HOUR)refresh();
+</script>
+</body>
+</html>
