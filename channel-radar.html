@@ -176,6 +176,19 @@ html[data-theme=light] .btn.saved{color:var(--text)}
 #syncBtn.ok{border-color:var(--good)}#syncBtn.warn{border-color:var(--warn);color:var(--warn)}#syncBtn.err{border-color:var(--bad);color:var(--bad)}
 .bbar{display:none}
 
+/* favourites */
+.favbtn{display:inline-flex;align-items:center;justify-content:center;width:36px;height:34px;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--mute);cursor:pointer}
+.favbtn:hover{color:var(--text)}
+.favbtn.on{color:#f5b301;border-color:#f5b301}
+.favbtn.on svg path{fill:#f5b301}
+.fsec{margin-bottom:28px}
+.fhead{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.fhead .cname{flex:1 1 240px}
+.fstats{display:flex;flex-wrap:wrap;gap:8px 20px}
+.fstats .k{color:var(--mute);font-size:11px;font-weight:500}
+.fstats .v{font-weight:600}
+.short{position:absolute;bottom:10px;left:10px;background:rgba(0,0,0,.8);color:#fff;padding:3px 7px;border-radius:5px;font-size:11px;font-weight:600}
+
 /* compact density */
 body.dense .crow{padding-top:6px;padding-bottom:6px}
 body.dense .cname img{width:32px;height:32px}
@@ -205,7 +218,7 @@ body.dense .grid{gap:12px}
   .idea{grid-template-columns:1fr}
   .ctable{background:none;border:0;display:flex;flex-direction:column;gap:10px}
   .crow{background:var(--panel);border:1px solid var(--line)!important;border-radius:12px}
-  .bbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));position:fixed;left:0;right:0;bottom:0;z-index:15;background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+  .bbar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:fixed;left:0;right:0;bottom:0;z-index:15;background:var(--panel);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
   .bbar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:60px;border:0;background:transparent;color:var(--mute);font-size:11px;font-weight:500;cursor:pointer}
   .bbar button.on{color:var(--acc)}
   html[data-theme=light] .bbar button.on{color:var(--text)}
@@ -238,6 +251,7 @@ body.dense .grid{gap:12px}
   <nav class="side" aria-label="Main menu">
     <button class="nav" data-tab="hot"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg><span>Breakout videos</span><span class="n" id="nHot"></span></button>
     <button class="nav" data-tab="channels"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Channels</span><span class="n" id="nCh"></span></button>
+    <button class="nav" data-tab="favs"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9z"/></svg><span>Favourites</span><span class="n" id="nFav"></span></button>
     <button class="nav" data-tab="ideas"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>Ideas</span><span class="n" id="nIdeas"></span></button>
     <button class="nav" data-tab="settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4"/></svg><span>Settings</span></button>
     <div class="quotabox">
@@ -274,6 +288,16 @@ body.dense .grid{gap:12px}
         </div>
       </div>
       <div id="chList"></div>
+    </div>
+
+    <div id="favView">
+      <div class="controls">
+        <div class="ctl"><span>Sort videos</span>
+          <div class="seg"><button data-set="favSort" data-val="new">Newest</button><button data-set="favSort" data-val="views">Most views</button></div>
+        </div>
+        <button class="btn sm" data-a="refreshFavs">Check favourites now</button>
+      </div>
+      <div id="favList"></div>
     </div>
 
     <div id="ideasView">
@@ -347,7 +371,7 @@ body.dense .grid{gap:12px}
         </div>
         <div class="setrow">
           <div class="lbl"><b>Open on</b><span>The page you see first</span></div>
-          <div class="ctrl"><div class="seg"><button data-set="startView" data-val="last">Last used</button><button data-set="startView" data-val="hot">Breakouts</button><button data-set="startView" data-val="channels">Channels</button><button data-set="startView" data-val="ideas">Ideas</button></div></div>
+          <div class="ctrl"><div class="seg"><button data-set="startView" data-val="last">Last used</button><button data-set="startView" data-val="hot">Breakouts</button><button data-set="startView" data-val="channels">Channels</button><button data-set="startView" data-val="favs">Favourites</button><button data-set="startView" data-val="ideas">Ideas</button></div></div>
         </div>
       </section>
 
@@ -380,6 +404,7 @@ body.dense .grid{gap:12px}
 <nav class="bbar" aria-label="Main menu">
   <button data-tab="hot"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg>Breakouts</button>
   <button data-tab="channels"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Channels</button>
+  <button data-tab="favs"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9z"/></svg>Favourites</button>
   <button data-tab="ideas"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>Ideas</button>
   <button data-tab="settings"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4"/></svg>Settings</button>
 </nav>
@@ -413,19 +438,19 @@ body.dense .grid{gap:12px}
 const $=s=>document.querySelector(s);
 const LS='channelRadar.v1';
 const DAY=864e5, HOUR=36e5;
-const DEF={apiKey:'',groups:['General'],channels:{},lastCheck:0,quota:{day:'',used:0},includeShorts:false,shortsMax:180,autoCheck:true,theme:'dark',fbConfig:null,dataAt:0,ideas:[],firstOut:{},visit:0,prevVisit:0,view:'hot',group:'__all',hotDays:'30',hotMin:'2',hotSort:'mult',chSort:'status',accent:'red',density:'comfy',startView:'last'};
+const DEF={apiKey:'',groups:['General'],channels:{},lastCheck:0,quota:{day:'',used:0},includeShorts:false,shortsMax:180,autoCheck:true,theme:'dark',fbConfig:null,dataAt:0,ideas:[],favs:[],favSort:'new',firstOut:{},visit:0,prevVisit:0,view:'hot',group:'__all',hotDays:'30',hotMin:'2',hotSort:'mult',chSort:'status',accent:'red',density:'comfy',startView:'last'};
 const ACC={red:['#ff4d4d','#ffffff','Red'],orange:['#ff8a4c','#111111','Orange'],blue:['#4da3ff','#111111','Blue'],green:['#2ecc71','#111111','Green'],pink:['#f472b6','#111111','Pink'],yellow:['#facc15','#111111','Yellow']};
 let S=Object.assign({},DEF,load());
 let busy=false,Q='';
 
 function load(){try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return {}}}
-function sig(){return JSON.stringify([S.groups,S.channels,S.ideas,S.apiKey,S.includeShorts,S.shortsMax,S.autoCheck,S.lastCheck])}
+function sig(){return JSON.stringify([S.groups,S.channels,S.ideas,S.favs,S.apiKey,S.includeShorts,S.shortsMax,S.autoCheck,S.lastCheck])}
 let lastSig=null;
 function save(){const g=sig();if(lastSig!==null&&g!==lastSig){S.dataAt=Date.now();FB.dirty=true;scheduleSync()}lastSig=g;try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){toast('Could not save: '+e.message,true)}}
 
 /* ---------- Cloud sync (Firebase) ---------- */
-const LOCALONLY=['theme','view','group','hotDays','hotMin','hotSort','chSort','visit','prevVisit','firstOut','accent','density','startView','fbConfig'];
-const SYNCED=['groups','ideas','apiKey','includeShorts','shortsMax','autoCheck','lastCheck','quota','dataAt'];
+const LOCALONLY=['theme','view','group','hotDays','hotMin','hotSort','chSort','visit','prevVisit','firstOut','accent','density','startView','fbConfig','favSort'];
+const SYNCED=['groups','ideas','favs','apiKey','includeShorts','shortsMax','autoCheck','lastCheck','quota','dataAt'];
 const BUILTIN_FB={apiKey:"AIzaSyCUcWSe4LKZpVqG96BDtallNsodfRZ2xwM",authDomain:"channel-radar-56bad.firebaseapp.com",projectId:"channel-radar-56bad",storageBucket:"channel-radar-56bad.firebasestorage.app",messagingSenderId:"538687939348",appId:"1:538687939348:web:fff41506fabb9b08659801"};
 let FB={app:null,auth:null,db:null,user:null,ready:false,pulling:false,pushing:false,dirty:false,timer:null,syncedAt:0,hashes:{},unsub:null,err:''};
 function parseFbConfig(txt){
@@ -694,6 +719,7 @@ function multColor(m){return m>=10?'#c0392b':m>=5?'#e74c3c':m>=3?'#d35400':'#b77
 const VIEWS={
   hot:['Breakout videos',()=>+S.hotMin>0?'Videos beating their own channel’s normal views by '+S.hotMin+'x or more':'Every video from your channels in this period'],
   channels:['Channels',()=>'How every channel you track is doing'],
+  favs:['Favourites',()=>'Channels you\u2019re watching closely, with all their latest videos'],
   ideas:['Ideas',()=>'Videos you saved, with your notes'],
   settings:['Settings',()=>'Saved in this browser, and in the cloud when you\u2019re signed in']
 };
@@ -720,6 +746,7 @@ function render(){
   document.querySelectorAll('[data-tab]').forEach(t=>{const on=t.dataset.tab===S.view;t.classList.toggle('on',on);if(on)t.setAttribute('aria-current','page');else t.removeAttribute('aria-current')});
   $('#hotView').style.display=S.view==='hot'?'block':'none';
   $('#chView').style.display=S.view==='channels'?'block':'none';
+  $('#favView').style.display=S.view==='favs'?'block':'none';
   $('#ideasView').style.display=S.view==='ideas'?'block':'none';
   $('#setView').style.display=S.view==='settings'?'flex':'none';
   const listView=S.view==='hot'||S.view==='channels';
@@ -734,7 +761,7 @@ function render(){
   const newN=hotRows.filter(isNew).length;
   const hotCh=[...ms.values()].filter(m=>m.st==='hot').length;
   const risingCh=[...ms.values()].filter(m=>m.st==='rising').length;
-  $('#nHot').textContent=hotRows.length||'';$('#nCh').textContent=chans.length||'';$('#nIdeas').textContent=S.ideas.length||'';
+  $('#nHot').textContent=hotRows.length||'';$('#nCh').textContent=chans.length||'';$('#nIdeas').textContent=S.ideas.length||'';$('#nFav').textContent=S.favs.filter(id=>S.channels[id]).length||'';
   $('#stats').innerHTML=[
     ['Channels tracked',chans.length],
     ['Hot right now',hotCh],
@@ -744,6 +771,7 @@ function render(){
   ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
   if(S.view==='hot')renderHot(hotRows.filter(r=>matchQ(r.v.t)||matchQ(r.c.title)),chans);
   else if(S.view==='ideas')renderIdeas();
+  else if(S.view==='favs')renderFavs();
   else if(S.view==='channels')renderChannels(chans.filter(c=>matchQ(c.title)||matchQ(c.handle)),ms);
 }
 function hotVideos(chans,ms){
@@ -763,6 +791,47 @@ function hotVideos(chans,ms){
 let ROWS={};
 function isNew(r){return S.prevVisit>0&&(S.firstOut[r.v.id]||0)>S.prevVisit}
 function isSaved(id){return S.ideas.some(i=>i.id===id)}
+function isFav(id){return S.favs.includes(id)}
+function renderFavs(){
+  const el=$('#favList');
+  const list=S.favs.map(id=>S.channels[id]).filter(Boolean);
+  if(!list.length){el.innerHTML='<div class="empty"><h3>No favourites yet</h3>Go to Channels and tap the star next to any channel to watch it here, with all its latest videos.<br><br><button class="btn pri" data-tab="channels">Go to Channels</button></div>';return}
+  const now=Date.now();let out='',shown=0;
+  for(const c of list){
+    const m=metrics(c);
+    let vids=(c.vids||[]).filter(v=>matchQ(v.t)||matchQ(c.title));
+    if(!vids.length&&Q)continue;shown++;
+    vids=[...vids].sort((a,b)=>S.favSort==='views'?b.v-a.v:b.p-a.p);
+    const url='https://www.youtube.com/channel/'+c.id;
+    const tot=(c.vids||[]).filter(v=>now-v.p<30*DAY).reduce((a,v)=>a+v.v,0);
+    out+=`<section class="fsec"><div class="fhead">
+      <div class="cname">${c.thumb?`<img src="${esc(c.thumb)}" alt="">`:'<img alt="">'}<div style="min-width:0">
+        <div class="t"><a href="${url}" target="_blank" rel="noopener">${esc(c.title||c.id)}</a></div>
+        <div class="h"><span class="pill p-${m.st}">${LABEL[m.st]}</span> ${esc(c.group||'')}</div></div></div>
+      <div class="fstats">
+        <div><div class="k">Subscribers</div><div class="v">${c.stats&&c.stats.s!=null?fmt(c.stats.s):'hidden'}</div></div>
+        <div><div class="k">Views, last 30 days</div><div class="v">${fmt(tot)}</div></div>
+        <div><div class="k">Typical views</div><div class="v">${fmt(m.base)}</div></div>
+        <div><div class="k">Uploads</div><div class="v">${m.upw.toFixed(1)}/wk</div></div>
+        <div><div class="k">Last upload</div><div class="v">${ago(m.lastUp)}</div></div>
+      </div>
+      <button class="favbtn on" data-fav="${c.id}" aria-label="Remove from favourites" aria-pressed="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9z"/></svg></button></div>`;
+    if(!vids.length){out+=`<div class="empty">No videos loaded yet. Press "Check favourites now".</div></section>`;continue}
+    out+='<div class="grid">'+vids.map(v=>{
+      const vurl='https://www.youtube.com/watch?v='+v.id,mult=m.base?v.v/m.base:0,sv=isSaved(v.id);
+      ROWS[v.id]={c,v,mult};
+      return `<div class="vcard">
+        <a class="thumb" href="${vurl}" target="_blank" rel="noopener"><img loading="lazy" src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="">
+          ${mult>=1.5?`<span class="mult" style="background:${multColor(mult)}">${mult>=10?Math.round(mult):mult.toFixed(1)}x normal</span>`:''}
+          ${v.d&&v.d<=S.shortsMax?'<span class="short">Short</span>':''}<span class="age">${ago(v.p)}</span></a>
+        <div class="vbody">
+          <a class="vtitle" href="${vurl}" target="_blank" rel="noopener">${esc(v.t)}</a>
+          <div class="vmeta"><span><b>${fmt(v.v)}</b> views</span><span><b>${fmt(v.v/Math.max(1,(now-v.p)/HOUR))}</b>/hr</span><span><b>${fmt(v.l)}</b> likes</span></div>
+          <div class="vfoot"><button class="btn sm${sv?' saved':''}" data-save="${v.id}">${sv?'Saved':'Save idea'}</button><a class="btn sm" href="${vurl}" target="_blank" rel="noopener">Open</a></div>
+        </div></div>`}).join('')+'</div></section>';
+  }
+  el.innerHTML=shown?out:'<div class="empty"><h3>Nothing matches your search</h3></div>';
+}
 function renderIdeas(){
   const el=$('#ideaList');
   const list=S.ideas.filter(i=>matchQ(i.t)||matchQ(i.ch)||matchQ(i.note));
@@ -831,7 +900,7 @@ function renderChannels(chans,ms){
       <div class="cell"><div class="k">Typical views</div><div class="v">${fmt(m.base)}</div></div>
       <div class="cell"><div class="k">Momentum</div><div class="v">${mom}</div></div>
       <div class="cell"><div class="k">Best (30d) · uploads</div><div class="v">${best} <span style="color:var(--mute);font-weight:400;font-size:12px">· ${m.upw.toFixed(1)}/wk · last ${ago(m.lastUp)}</span></div></div>
-      <div class="cact"><select data-move="${c.id}" aria-label="Move to group">${opts}</select><button class="btn sm danger" data-remove="${c.id}">Remove</button></div>
+      <div class="cact"><button class="favbtn${isFav(c.id)?' on':''}" data-fav="${c.id}" aria-label="${isFav(c.id)?'Remove from favourites':'Add to favourites'}" aria-pressed="${isFav(c.id)}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9z"/></svg></button><select data-move="${c.id}" aria-label="Move to group">${opts}</select><button class="btn sm danger" data-remove="${c.id}">Remove</button></div>
     </div>`;
   }).join('')+'</div>';
 }
@@ -858,15 +927,16 @@ function addGroup(name){
 
 /* ---------- Events ---------- */
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-a],[data-tab],[data-remove],[data-delgroup],[data-save],[data-delidea],[data-group],[data-set],[data-accent]');
+  const t=e.target.closest('[data-a],[data-tab],[data-fav],[data-remove],[data-delgroup],[data-save],[data-delidea],[data-group],[data-set],[data-accent]');
   if(!t){if(e.target.classList.contains('modal'))e.target.classList.remove('on');return}
   if(t.dataset.tab){if(t.dataset.tab==='settings'){openSettings();return}S.view=t.dataset.tab;save();render();window.scrollTo(0,0);return}
   if(t.dataset.group){S.group=t.dataset.group;save();fillGroupSelects();render();return}
   if(t.dataset.set){S[t.dataset.set]=t.dataset.val;save();applyTheme();render();return}
   if(t.dataset.accent){S.accent=t.dataset.accent;save();applyTheme();return}
+  if(t.dataset.fav){const id=t.dataset.fav;if(isFav(id)){S.favs=S.favs.filter(x=>x!==id);toast('Removed from favourites')}else{S.favs.push(id);toast('Added to favourites')}save();render();return}
   if(t.dataset.save){const id=t.dataset.save;if(isSaved(id)){S.ideas=S.ideas.filter(i=>i.id!==id);toast('Removed from ideas')}else{const r=ROWS[id];if(r){S.ideas.push({id,t:r.v.t,ch:r.c.title||'',v:r.v.v,mult:r.mult,saved:Date.now(),note:''});toast('Saved to Ideas')}}save();render();return}
   if(t.dataset.delidea){if(confirm('Remove this idea and its notes?')){S.ideas=S.ideas.filter(i=>i.id!==t.dataset.delidea);save();render()}return}
-  if(t.dataset.remove){const c=S.channels[t.dataset.remove];if(confirm('Remove '+(c.title||c.id)+'?')){delete S.channels[t.dataset.remove];save();fillGroupSelects();render()}return}
+  if(t.dataset.remove){const c=S.channels[t.dataset.remove];if(confirm('Remove '+(c.title||c.id)+'?')){S.favs=S.favs.filter(x=>x!==t.dataset.remove);delete S.channels[t.dataset.remove];save();fillGroupSelects();render()}return}
   if(t.dataset.delgroup){
     const g=t.dataset.delgroup;if(!confirm('Delete group "'+g+'"? Its channels move to "'+S.groups.find(x=>x!==g)+'".'))return;
     S.groups=S.groups.filter(x=>x!==g);Object.values(S.channels).forEach(c=>{if(c.group===g)c.group=S.groups[0]});
@@ -876,6 +946,7 @@ document.addEventListener('click',e=>{
   if(a==='add'){fillGroupSelects();$('#addLog').style.display='none';$('#addModal').classList.add('on');setTimeout(()=>$('#addInput').focus(),50)}
   else if(a==='close'){t.closest('.modal').classList.remove('on')}
   else if(a==='doAdd')doAdd();
+  else if(a==='refreshFavs'){const ids=S.favs.filter(id=>S.channels[id]);if(ids.length)refresh(ids);else toast('Add some favourites first')}
   else if(a==='refresh'){const ids=groupChannels().map(c=>c.id);refresh(ids.length?ids:undefined)}
   else if(a==='settings')openSettings();
   else if(a==='newGroupChip'){const n=prompt('New group name');if(n)addGroup(n)}
