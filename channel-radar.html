@@ -603,7 +603,7 @@ async function resolve(p){
   if(p.type==='user'){const j=await api('channels',{part:'id',forUsername:p.v});if(j.items&&j.items[0])return j.items[0].id;return resolve({type:'handle',v:'@'+p.v})}
   return null;
 }
-function chFmt(c){return c.fmt||(S.includeShorts?'both':'long')}
+function chFmt(c){return c.fmt||'both'}
 function videoInfo(v){
   return{id:v.id,t:v.snippet.title,ch:v.snippet.channelTitle||'',chId:v.snippet.channelId||'',p:Date.parse(v.snippet.publishedAt),
     v:+(v.statistics.viewCount||0),l:+(v.statistics.likeCount||0),c:+(v.statistics.commentCount||0),d:dur(v.contentDetails.duration)};
@@ -627,6 +627,7 @@ async function doAdd(){
   let group=$('#addGroup').value;
   if(hasCh&&group==='__new'){group=$('#newGroup').value.trim();if(!group){toast('Give the new group a name',true);return}if(!S.groups.includes(group))S.groups.push(group)}
   const btn=$('#doAddBtn');btn.disabled=true;btn.textContent='Working…';
+  let savedVids=0;
   const log=[],ids=new Set(),vidIds=[],logEl=$('#addLog');logEl.style.display='block';logEl.textContent='Working…';
   for(const {raw,p} of parsed){
     if(p.type==='bad'){log.push('✗ Not a handle or link: '+raw+' (use the @handle, or a channel or video link)');continue}
@@ -644,7 +645,7 @@ async function doAdd(){
         const v=got[id];if(!v){log.push('✗ Video not found: '+id);continue}
         const x=videoInfo(v);
         S.ideas.push({id,t:x.t,ch:x.ch,chId:x.chId,v:x.v,v0:x.v,l:x.l,p:x.p,d:x.d,s:x.d>0&&x.d<=180,mult:null,saved:Date.now(),upd:Date.now(),note:'',src:'link'});
-        log.push('✓ Saved video to Ideas: '+x.t);
+        log.push('✓ Saved video to Ideas: '+x.t);savedVids++;
       }
     }catch(e){log.push('✗ Videos — '+e.message)}
   }
@@ -660,8 +661,9 @@ async function doAdd(){
     await refresh(newIds);
     newIds.forEach(id=>{const c=S.channels[id];if(c.missing){log.push('✗ No channel with ID '+id);delete S.channels[id]}else log.push('✓ Added channel: '+c.title+' ('+FMT[chFmt(c)]+')')});
   }
+  if(savedVids&&!newIds.length)S.view='ideas';
   save();render();
-  logEl.textContent=log.join('\n')||'Nothing new to add.';
+  logEl.textContent=(log.join('\n')||'Nothing new to add.')+(savedVids?'\n\nVideos you paste are in the Ideas tab (not Breakout videos).':'');
   $('#addInput').value='';
   btn.disabled=false;btn.textContent='Add';
   fillGroupSelects();
@@ -1111,7 +1113,7 @@ function applyTheme(){
   document.body.classList.toggle('dense',S.density==='compact');
   $('#swatches').innerHTML=Object.keys(ACC).map(k=>`<button class="swatch${(S.accent||'red')===k?' on':''}" style="background:${ACC[k][0]}" data-accent="${k}" aria-label="${ACC[k][2]}" aria-pressed="${(S.accent||'red')===k}"></button>`).join('');
 }
-if(!S.defFmt)S.defFmt=S.includeShorts?'both':'long';
+if(!S.defFmt)S.defFmt='both';
 S.prevVisit=S.visit||0;S.visit=Date.now();
 if(S.startView&&S.startView!=='last')S.view=S.startView;
 if(!VIEWS[S.view]||S.view==='settings')S.view=S.view==='settings'?'settings':'hot';
