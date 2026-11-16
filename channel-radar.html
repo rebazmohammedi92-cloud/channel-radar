@@ -188,6 +188,8 @@ html[data-theme=light] .btn.saved{color:var(--text)}
 .fstats .k{color:var(--mute);font-size:11px;font-weight:500}
 .fstats .v{font-weight:600}
 .short{position:absolute;bottom:10px;left:10px;background:rgba(0,0,0,.8);color:#fff;padding:3px 7px;border-radius:5px;font-size:11px;font-weight:600}
+.ftag{display:inline-block;padding:1px 7px;border-radius:5px;background:var(--panel2);color:var(--mute);font-size:11px;font-weight:600;margin-left:4px}
+.gain{color:var(--good);font-weight:600}
 
 /* compact density */
 body.dense .crow{padding-top:6px;padding-bottom:6px}
@@ -271,6 +273,9 @@ body.dense .grid{gap:12px}
         <div class="ctl"><span>Beating their normal by</span>
           <div class="seg"><button data-set="hotMin" data-val="0">All</button><button data-set="hotMin" data-val="1.5">1.5x</button><button data-set="hotMin" data-val="2">2x</button><button data-set="hotMin" data-val="3">3x</button><button data-set="hotMin" data-val="5">5x</button><button data-set="hotMin" data-val="10">10x</button></div>
         </div>
+        <div class="ctl"><span>Type</span>
+          <div class="seg"><button data-set="hotType" data-val="all">All</button><button data-set="hotType" data-val="long">Long</button><button data-set="hotType" data-val="shorts">Shorts</button></div>
+        </div>
         <div class="ctl"><label for="hotDays">Posted in last</label>
           <select id="hotDays"><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option><option value="90">90 days</option><option value="3650">All fetched</option></select>
         </div>
@@ -301,6 +306,10 @@ body.dense .grid{gap:12px}
     </div>
 
     <div id="ideasView">
+      <div class="controls">
+        <button class="btn sm pri" data-a="add">+ Add video links</button>
+        <button class="btn sm" data-a="refreshIdeas">Update view counts</button>
+      </div>
       <div id="ideaList"></div>
     </div>
 
@@ -342,12 +351,8 @@ body.dense .grid{gap:12px}
           <div class="ctrl"><div class="seg"><button data-set="hotDays" data-val="7">7 days</button><button data-set="hotDays" data-val="30">30 days</button><button data-set="hotDays" data-val="90">90 days</button><button data-set="hotDays" data-val="3650">All</button></div></div>
         </div>
         <div class="setrow">
-          <label class="lbl" for="incShorts"><b>Include Shorts</b><span>Count Shorts in the analysis</span></label>
-          <div class="ctrl"><input type="checkbox" class="sw" id="incShorts"></div>
-        </div>
-        <div class="setrow">
-          <label class="lbl" for="shortsMax"><b>Shorts length</b><span>Videos up to this many seconds count as Shorts</span></label>
-          <div class="ctrl"><input type="number" id="shortsMax" min="30" max="600" style="width:100px"></div>
+          <div class="lbl"><b>New channels track</b><span>The default when adding channels. You can change each channel on the Channels page.</span></div>
+          <div class="ctrl"><div class="seg"><button data-set="defFmt" data-val="long">Long videos</button><button data-set="defFmt" data-val="shorts">Shorts</button><button data-set="defFmt" data-val="both">Both</button></div></div>
         </div>
         <div class="setrow">
           <label class="lbl" for="autoCheck"><b>Auto check</b><span>Check when opened, if the last check was over 6 hours ago</span></label>
@@ -412,22 +417,26 @@ body.dense .grid{gap:12px}
 <!-- Add channels -->
 <div class="modal" id="addModal">
   <div class="box">
-    <h2>Add channels</h2>
-    <p class="sub">Paste one per line: channel links, @handles, channel IDs, or a link to any of their videos.</p>
+    <h2>Add channels or videos</h2>
+    <p class="sub">Paste one per line. <b>Channels:</b> @handles or channel links. <b>Videos:</b> any video or Shorts link. Videos are saved to Ideas, and their channel is not added.</p>
     <div class="field">
-      <textarea id="addInput" placeholder="https://www.youtube.com/@channelname&#10;@anotherchannel&#10;UCxxxxxxxxxxxxxxxxxxxxxx&#10;https://youtu.be/VIDEOID"></textarea>
+      <textarea id="addInput" placeholder="@channelname&#10;https://www.youtube.com/@anotherchannel&#10;https://www.youtube.com/shorts/VIDEOID&#10;https://youtu.be/VIDEOID"></textarea>
     </div>
     <div class="field">
-      <span>Add to group</span>
+      <span>Channels: add to group</span>
       <div class="row">
         <select id="addGroup"></select>
         <input type="text" id="newGroup" placeholder="New group name" style="display:none;flex:1">
       </div>
     </div>
+    <div class="field">
+      <span>Channels: track</span>
+      <div class="seg" id="addFmt"><button type="button" data-addfmt="long">Long videos</button><button type="button" data-addfmt="shorts">Shorts</button><button type="button" data-addfmt="both">Both</button></div>
+    </div>
     <div class="log" id="addLog"></div>
     <div class="foot">
       <button class="btn" data-a="close">Close</button>
-      <button class="btn pri" data-a="doAdd" id="doAddBtn">Add & check</button>
+      <button class="btn pri" data-a="doAdd" id="doAddBtn">Add</button>
     </div>
   </div>
 </div>
@@ -438,19 +447,20 @@ body.dense .grid{gap:12px}
 const $=s=>document.querySelector(s);
 const LS='channelRadar.v1';
 const DAY=864e5, HOUR=36e5;
-const DEF={apiKey:'',groups:['General'],channels:{},lastCheck:0,quota:{day:'',used:0},includeShorts:false,shortsMax:180,autoCheck:true,theme:'dark',fbConfig:null,dataAt:0,ideas:[],favs:[],favSort:'new',firstOut:{},visit:0,prevVisit:0,view:'hot',group:'__all',hotDays:'30',hotMin:'2',hotSort:'mult',chSort:'status',accent:'red',density:'comfy',startView:'last'};
+const DEF={apiKey:'',groups:['General'],channels:{},lastCheck:0,quota:{day:'',used:0},includeShorts:false,shortsMax:180,autoCheck:true,theme:'dark',fbConfig:null,dataAt:0,ideas:[],favs:[],favSort:'new',firstOut:{},visit:0,prevVisit:0,view:'hot',group:'__all',hotDays:'30',hotMin:'2',hotSort:'mult',hotType:'all',chSort:'status',accent:'red',density:'comfy',startView:'last',defFmt:''};
+const FMT={long:'Long videos',shorts:'Shorts',both:'Both'};
 const ACC={red:['#ff4d4d','#ffffff','Red'],orange:['#ff8a4c','#111111','Orange'],blue:['#4da3ff','#111111','Blue'],green:['#2ecc71','#111111','Green'],pink:['#f472b6','#111111','Pink'],yellow:['#facc15','#111111','Yellow']};
 let S=Object.assign({},DEF,load());
-let busy=false,Q='';
+let busy=false,Q='';const PENDING=new Set();
 
 function load(){try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return {}}}
-function sig(){return JSON.stringify([S.groups,S.channels,S.ideas,S.favs,S.apiKey,S.includeShorts,S.shortsMax,S.autoCheck,S.lastCheck])}
+function sig(){return JSON.stringify([S.groups,S.channels,S.ideas,S.favs,S.apiKey,S.includeShorts,S.shortsMax,S.autoCheck,S.lastCheck,S.defFmt])}
 let lastSig=null;
 function save(){const g=sig();if(lastSig!==null&&g!==lastSig){S.dataAt=Date.now();FB.dirty=true;scheduleSync()}lastSig=g;try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){toast('Could not save: '+e.message,true)}}
 
 /* ---------- Cloud sync (Firebase) ---------- */
-const LOCALONLY=['theme','view','group','hotDays','hotMin','hotSort','chSort','visit','prevVisit','firstOut','accent','density','startView','fbConfig','favSort'];
-const SYNCED=['groups','ideas','favs','apiKey','includeShorts','shortsMax','autoCheck','lastCheck','quota','dataAt'];
+const LOCALONLY=['theme','view','group','hotDays','hotMin','hotSort','hotType','chSort','visit','prevVisit','firstOut','accent','density','startView','fbConfig','favSort'];
+const SYNCED=['groups','ideas','favs','apiKey','includeShorts','shortsMax','autoCheck','lastCheck','quota','dataAt','defFmt'];
 const BUILTIN_FB={apiKey:"AIzaSyCUcWSe4LKZpVqG96BDtallNsodfRZ2xwM",authDomain:"channel-radar-56bad.firebaseapp.com",projectId:"channel-radar-56bad",storageBucket:"channel-radar-56bad.firebasestorage.app",messagingSenderId:"538687939348",appId:"1:538687939348:web:fff41506fabb9b08659801"};
 let FB={app:null,auth:null,db:null,user:null,ready:false,pulling:false,pushing:false,dirty:false,timer:null,syncedAt:0,hashes:{},unsub:null,err:''};
 function parseFbConfig(txt){
@@ -568,71 +578,131 @@ async function api(path,params,cost=1){
   const r=await fetch('https://www.googleapis.com/youtube/v3/'+path+'?'+q);
   addQuota(cost);
   let j;try{j=await r.json()}catch(e){throw new Error('Bad response from YouTube')}
-  if(j.error)throw new Error(j.error.message||'API error');
+  if(j.error){const er=new Error(j.error.message||'API error');er.code=j.error.code;throw er}
   return j;
 }
 async function pool(items,n,fn){let i=0;const w=Array.from({length:Math.min(n,items.length)},async()=>{while(i<items.length){const k=i++;await fn(items[k],k)}});await Promise.all(w)}
 
-/* ---------- Adding channels ---------- */
+/* ---------- Adding channels and videos ---------- */
+// Channels: only @handles, channel links/IDs, and old /user/ or /c/ links (looked up as handles, no paid search).
+// Videos: any watch / youtu.be / shorts / live link -> saved to Ideas, channel is NOT added.
 function parseEntry(s){
   s=s.trim();if(!s)return null;let m;
+  if(m=s.match(/(?:[?&]v=|youtu\.be\/|\/shorts\/|\/live\/|\/embed\/)([\w-]{11})/))return{type:'video',v:m[1]};
   if(m=s.match(/(UC[\w-]{22})/))return{type:'id',v:m[1]};
   if(m=s.match(/youtube\.com\/@([^\/?#\s]+)/i))return{type:'handle',v:'@'+decodeURIComponent(m[1])};
   if(m=s.match(/^@([^\s\/]+)$/))return{type:'handle',v:s};
   if(m=s.match(/youtube\.com\/user\/([^\/?#\s]+)/i))return{type:'user',v:m[1]};
-  if(m=s.match(/youtube\.com\/c\/([^\/?#\s]+)/i))return{type:'search',v:decodeURIComponent(m[1])};
-  if(m=s.match(/(?:[?&]v=|youtu\.be\/|\/shorts\/|\/live\/)([\w-]{11})/))return{type:'video',v:m[1]};
-  if(/^[\w.-]+$/.test(s))return{type:'handle',v:'@'+s,fallback:true};
-  return{type:'search',v:s};
+  if(m=s.match(/youtube\.com\/c\/([^\/?#\s]+)/i))return{type:'handle',v:'@'+decodeURIComponent(m[1]),old:true};
+  if(/^[\w.-]+$/.test(s))return{type:'handle',v:'@'+s};
+  return{type:'bad'};
 }
 async function resolve(p){
   if(p.type==='id')return p.v;
-  if(p.type==='handle'){const j=await api('channels',{part:'id',forHandle:p.v});if(j.items&&j.items[0])return j.items[0].id;if(p.fallback)return resolve({type:'search',v:p.v.slice(1)});return null}
-  if(p.type==='user'){const j=await api('channels',{part:'id',forUsername:p.v});if(j.items&&j.items[0])return j.items[0].id;return resolve({type:'search',v:p.v})}
-  if(p.type==='video'){const j=await api('videos',{part:'snippet',id:p.v});return j.items&&j.items[0]?j.items[0].snippet.channelId:null}
-  if(p.type==='search'){const j=await api('search',{part:'snippet',type:'channel',q:p.v,maxResults:1},100);return j.items&&j.items[0]?j.items[0].snippet.channelId:null}
+  if(p.type==='handle'){const j=await api('channels',{part:'id',forHandle:p.v});return j.items&&j.items[0]?j.items[0].id:null}
+  if(p.type==='user'){const j=await api('channels',{part:'id',forUsername:p.v});if(j.items&&j.items[0])return j.items[0].id;return resolve({type:'handle',v:'@'+p.v})}
   return null;
 }
+function chFmt(c){return c.fmt||(S.includeShorts?'both':'long')}
+function videoInfo(v){
+  return{id:v.id,t:v.snippet.title,ch:v.snippet.channelTitle||'',chId:v.snippet.channelId||'',p:Date.parse(v.snippet.publishedAt),
+    v:+(v.statistics.viewCount||0),l:+(v.statistics.likeCount||0),c:+(v.statistics.commentCount||0),d:dur(v.contentDetails.duration)};
+}
+async function fetchVideos(ids){
+  const out={};
+  for(let i=0;i<ids.length;i+=50){
+    const j=await api('videos',{part:'snippet,statistics,contentDetails',id:ids.slice(i,i+50).join(','),maxResults:50});
+    for(const v of j.items||[])out[v.id]=v;
+  }
+  return out;
+}
+let addFmt='';
+function markAddFmt(){if(!addFmt)addFmt=S.defFmt||'long';document.querySelectorAll('[data-addfmt]').forEach(b=>b.classList.toggle('on',b.dataset.addfmt===addFmt))}
 async function doAdd(){
   const lines=$('#addInput').value.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
-  if(!lines.length){toast('Paste at least one channel',true);return}
+  if(!lines.length){toast('Paste at least one handle or video link',true);return}
   if(!S.apiKey){toast('Add your API key in Settings first',true);return}
+  const parsed=lines.map(raw=>({raw,p:parseEntry(raw)})).filter(x=>x.p);
+  const hasCh=parsed.some(x=>x.p.type!=='video'&&x.p.type!=='bad');
   let group=$('#addGroup').value;
-  if(group==='__new'){group=$('#newGroup').value.trim();if(!group){toast('Give the new group a name',true);return}if(!S.groups.includes(group))S.groups.push(group)}
-  const btn=$('#doAddBtn');btn.disabled=true;btn.textContent='Finding channels…';
-  const log=[],ids=new Set(),logEl=$('#addLog');logEl.style.display='block';logEl.textContent='Working…';
-  for(const raw of lines){
-    const p=parseEntry(raw);if(!p)continue;
-    try{const id=await resolve(p);if(id)ids.add(id);else log.push('✗ Not found: '+raw)}
+  if(hasCh&&group==='__new'){group=$('#newGroup').value.trim();if(!group){toast('Give the new group a name',true);return}if(!S.groups.includes(group))S.groups.push(group)}
+  const btn=$('#doAddBtn');btn.disabled=true;btn.textContent='Working…';
+  const log=[],ids=new Set(),vidIds=[],logEl=$('#addLog');logEl.style.display='block';logEl.textContent='Working…';
+  for(const {raw,p} of parsed){
+    if(p.type==='bad'){log.push('✗ Not a handle or link: '+raw+' (use the @handle, or a channel or video link)');continue}
+    if(p.type==='video'){if(!vidIds.includes(p.v))vidIds.push(p.v);continue}
+    try{const id=await resolve(p);if(id)ids.add(id);else log.push('✗ No channel with handle '+p.v+(p.old?' (old /c/ link: open the channel and copy its @handle)':''))}
     catch(e){log.push('✗ '+raw+' — '+e.message)}
   }
+  // videos -> Ideas
+  if(vidIds.length){
+    btn.textContent='Saving videos…';
+    try{
+      const got=await fetchVideos(vidIds.filter(id=>!isSaved(id)));
+      for(const id of vidIds){
+        if(isSaved(id)){log.push('• Already in Ideas: '+(S.ideas.find(i=>i.id===id).t||id));continue}
+        const v=got[id];if(!v){log.push('✗ Video not found: '+id);continue}
+        const x=videoInfo(v);
+        S.ideas.push({id,t:x.t,ch:x.ch,chId:x.chId,v:x.v,v0:x.v,l:x.l,p:x.p,d:x.d,s:x.d>0&&x.d<=180,mult:null,saved:Date.now(),upd:Date.now(),note:'',src:'link'});
+        log.push('✓ Saved video to Ideas: '+x.t);
+      }
+    }catch(e){log.push('✗ Videos — '+e.message)}
+  }
+  // channels
   const newIds=[];
   for(const id of ids){
     if(S.channels[id]){log.push('• Already tracked: '+(S.channels[id].title||id));continue}
-    S.channels[id]={id,group,added:Date.now(),hist:[],vids:[]};newIds.push(id);
+    S.channels[id]={id,group,fmt:addFmt||S.defFmt||'long',added:Date.now(),hist:[],vids:[]};newIds.push(id);
   }
   save();
   if(newIds.length){
     btn.textContent='Checking stats…';
     await refresh(newIds);
-    newIds.forEach(id=>{const c=S.channels[id];if(c.missing){log.push('✗ No channel with ID '+id);delete S.channels[id]}else log.push('✓ Added: '+c.title)});
-    save();render();
+    newIds.forEach(id=>{const c=S.channels[id];if(c.missing){log.push('✗ No channel with ID '+id);delete S.channels[id]}else log.push('✓ Added channel: '+c.title+' ('+FMT[chFmt(c)]+')')});
   }
+  save();render();
   logEl.textContent=log.join('\n')||'Nothing new to add.';
   $('#addInput').value='';
-  btn.disabled=false;btn.textContent='Add & check';
+  btn.disabled=false;btn.textContent='Add';
   fillGroupSelects();
+}
+async function trackChannel(chId,fmt){
+  if(!chId)return;
+  if(S.channels[chId]){toast('Already tracking that channel');return}
+  if(busy){toast('Wait for the current check to finish');return}
+  if(!S.apiKey){openSettings();toast('Add your API key first',true);return}
+  const group=S.group!=='__all'?S.group:S.groups[0];
+  S.channels[chId]={id:chId,group,fmt:fmt||S.defFmt||'long',added:Date.now(),hist:[],vids:[]};save();
+  await refresh([chId]);
+  const c=S.channels[chId];
+  if(!c)return;
+  if(c.missing){delete S.channels[chId];save();toast('Could not find that channel',true)}
+  else toast('Now tracking '+c.title+' ('+FMT[c.fmt]+') in '+group);
+  fillGroupSelects();render();
 }
 
 /* ---------- Refreshing data ---------- */
 function setBusy(b){busy=b;['#refreshBtn','#refreshBtnM'].forEach(s=>{const e=$(s);if(e)e.disabled=b})}
-async function refresh(ids){
-  if(busy)return;
+async function refreshIdeas(){
+  const ids=S.ideas.map(i=>i.id);if(!ids.length)return 0;
+  const got=await fetchVideos(ids);
+  for(const i of S.ideas){
+    const v=got[i.id];if(!v)continue;const x=videoInfo(v);
+    if(i.v0==null)i.v0=i.v;
+    Object.assign(i,{t:x.t,ch:x.ch,chId:x.chId,v:x.v,l:x.l,p:x.p,d:x.d,upd:Date.now()});
+    if(i.s==null)i.s=x.d>0&&x.d<=180;
+  }
+  return ids.length;
+}
+async function refresh(ids,opts){
+  opts=opts||{};
+  if(busy){if(ids&&ids.length&&!opts.ideas){ids.forEach(id=>PENDING.add(id))}return}
   if(!S.apiKey){openSettings();toast('Add your API key first',true);return}
   ids=ids||Object.keys(S.channels);
-  if(!ids.length){toast('Add some channels first');return}
+  if(!ids.length&&!(opts.ideas&&S.ideas.length)){toast('Add some channels first');return}
   setBusy(true);
   try{
+    if(ids.length){
     prog('Fetching channel stats…');
     for(let i=0;i<ids.length;i+=50){
       const chunk=ids.slice(i,i+50);
@@ -653,15 +723,26 @@ async function refresh(ids){
       }
       chunk.forEach(id=>{if(!got.has(id)&&S.channels[id])S.channels[id].missing=true});
     }
+    // YouTube keeps hidden per-channel playlists: UULF = long videos only, UUSH = Shorts only.
     const withUp=ids.filter(id=>S.channels[id]&&S.channels[id].uploads&&!S.channels[id].missing);
-    const vidMap={};let done=0;
-    prog('Fetching recent uploads…');
-    await pool(withUp,6,async id=>{
-      try{const j=await api('playlistItems',{part:'contentDetails',playlistId:S.channels[id].uploads,maxResults:30});vidMap[id]=(j.items||[]).map(x=>x.contentDetails.videoId)}
-      catch(e){vidMap[id]=null}
-      prog('Fetching recent uploads… '+(++done)+'/'+withUp.length);
-    });
-    const all=[].concat(...Object.values(vidMap).filter(Boolean));
+    const res={},jobs=[];
+    for(const id of withUp){
+      const c=S.channels[id],f=chFmt(c),tail=c.uploads.slice(2);
+      res[id]={list:[],ok:0,nf:0,err:0};
+      if(f!=='shorts')jobs.push({id,pl:'UULF'+tail,s:false});
+      if(f!=='long')jobs.push({id,pl:'UUSH'+tail,s:true});
+    }
+    const listPl=async(job)=>{
+      const r=res[job.id];
+      try{const j=await api('playlistItems',{part:'contentDetails',playlistId:job.pl,maxResults:30});(j.items||[]).forEach(x=>r.list.push({id:x.contentDetails.videoId,s:job.s}));r.ok++}
+      catch(e){if(e.code===404)r.nf++;else r.err++}
+    };
+    let done=0;prog('Fetching recent uploads…');
+    await pool(jobs,6,async job=>{await listPl(job);prog('Fetching recent uploads… '+(++done)+'/'+jobs.length)});
+    // fallback: if neither split playlist exists, use the full uploads list and guess Shorts by length
+    const fb=withUp.filter(id=>res[id].ok===0&&res[id].err===0);
+    await pool(fb,6,async id=>listPl({id,pl:S.channels[id].uploads,s:null}));
+    const all=[].concat(...withUp.map(id=>res[id].list.map(x=>x.id)));
     const info={};
     for(let i=0;i<all.length;i+=50){
       prog('Fetching video stats… '+Math.min(i+50,all.length)+'/'+all.length);
@@ -671,45 +752,64 @@ async function refresh(ids){
         info[v.id]={id:v.id,t:v.snippet.title,p:Date.parse(v.snippet.publishedAt),v:+(v.statistics.viewCount||0),l:+(v.statistics.likeCount||0),c:+(v.statistics.commentCount||0),d:dur(v.contentDetails.duration)};
       }
     }
-    for(const id in vidMap){
-      if(!vidMap[id])continue;
+    for(const id of withUp){
+      const r=res[id];if(r.ok===0&&r.list.length===0&&r.err>0)continue; // keep old data if YouTube errored
       const c=S.channels[id];
-      c.vids=vidMap[id].map(x=>info[x]).filter(Boolean).sort((a,b)=>b.p-a.p);
+      c.vids=r.list.filter(x=>info[x.id]).map(x=>Object.assign({},info[x.id],x.s==null?{}:{s:x.s})).sort((a,b)=>b.p-a.p);
       c.checked=Date.now();
     }
-    S.lastCheck=Date.now();save();
-    toast('Checked '+ids.length+' channel'+(ids.length>1?'s':''));
+    S.lastCheck=Date.now();
+    }
+    if(opts.ideas&&S.ideas.length){prog('Updating saved videos…');await refreshIdeas()}
+    save();
+    const parts=[];if(ids.length)parts.push(ids.length+' channel'+(ids.length>1?'s':''));if(opts.ideas&&S.ideas.length)parts.push(S.ideas.length+' saved video'+(S.ideas.length>1?'s':''));
+    toast('Checked '+parts.join(' and '));
   }catch(e){toast('Error: '+e.message,true);save()}
   setBusy(false);prog('');render();
+  if(PENDING.size){const next=[...PENDING].filter(id=>S.channels[id]);PENDING.clear();if(next.length)refresh(next)}
 }
 
 /* ---------- Analysis ---------- */
-function vidsOf(c){return (c.vids||[]).filter(v=>S.includeShorts||v.d>S.shortsMax)}
+// Shorts and long videos get separate "normal" baselines, so a Short is only compared with that channel's other Shorts.
+function isShortV(v){return v.s!=null?v.s:(v.d>0&&v.d<=(S.shortsMax||180))}
+function vidsOf(c){const f=chFmt(c);return (c.vids||[]).filter(v=>f==='both'||(f==='shorts')===isShortV(v))}
+function baseOf(vs,now){const mature=vs.filter(v=>now-v.p>3*DAY);return median((mature.length>=3?mature:vs).map(v=>v.v))}
 function metrics(c){
   const vs=vidsOf(c),now=Date.now();
-  const mature=vs.filter(v=>now-v.p>3*DAY);
-  const base=median((mature.length>=3?mature:vs).map(v=>v.v));
+  const L=vs.filter(v=>!isShortV(v)),Sh=vs.filter(isShortV);
+  const baseL=baseOf(L,now),baseS=baseOf(Sh,now);
+  const baseFor=v=>isShortV(v)?baseS:baseL;
+  const last30=vs.filter(v=>now-v.p<30*DAY);
+  const n30S=last30.filter(isShortV).length,n30L=last30.length-n30S;
+  const primS=Sh.length>0&&(L.length===0||n30S>n30L);
+  const prim=primS?Sh:L,base=primS?baseS:baseL;
+  const mature=prim.filter(v=>now-v.p>3*DAY);
   const rec=mature.slice(0,5),old=mature.slice(5);
   const oldMed=median(old.map(v=>v.v));
   const mom=(rec.length>=3&&old.length>=3&&oldMed>0)?median(rec.map(v=>v.v))/oldMed:null;
-  const last30=vs.filter(v=>now-v.p<30*DAY);
   const upw=last30.length*7/30;
   let best=null;
-  if(base)for(const v of last30){const m=v.v/base;if(!best||m>best.m)best={v,m}}
+  for(const v of last30){const b=baseFor(v);if(!b)continue;const m=v.v/b;if(!best||m>best.m)best={v,m}}
   let g7=null;const cur=c.stats,h=c.hist||[];
   if(cur&&cur.s!=null){
     const target=now-7*DAY;let ref=null;
     for(const x of h){if(x.t<=now-DAY&&x.s!=null&&(!ref||Math.abs(x.t-target)<Math.abs(ref.t-target)))ref=x}
     if(ref)g7={abs:cur.s-ref.s,pct:ref.s?(cur.s-ref.s)/ref.s*100:0,days:Math.round((now-ref.t)/DAY)};
   }
-  const lastUp=(c.vids&&c.vids[0])?c.vids[0].p:null;
+  const lastUp=vs[0]?vs[0].p:((c.vids&&c.vids[0])?c.vids[0].p:null);
   let st='steady';
   if(!vs.length)st='nodata';
   else if(lastUp&&now-lastUp>60*DAY)st='inactive';
   else if((best&&best.m>=5)||(mom&&mom>=1.6))st='hot';
   else if((best&&best.m>=2.5)||(mom&&mom>=1.2))st='rising';
   else if(mom&&mom<0.7)st='cooling';
-  return{base,mom,upw,best,g7,lastUp,st};
+  return{base,baseL,baseS,baseFor,primS,mom,upw,best,g7,lastUp,st};
+}
+function typicalHtml(c,m){
+  const f=chFmt(c);
+  if(f==='long')return fmt(m.baseL);
+  if(f==='shorts')return fmt(m.baseS);
+  return fmt(m.baseL)+' <span style="color:var(--mute);font-weight:400;font-size:12px">long</span> · '+fmt(m.baseS)+' <span style="color:var(--mute);font-weight:400;font-size:12px">shorts</span>';
 }
 const RANK={hot:4,rising:3,steady:2,cooling:1,inactive:0,nodata:-1};
 const LABEL={hot:'Hot',rising:'Rising',steady:'Steady',cooling:'Cooling',inactive:'Inactive',nodata:'No data yet'};
@@ -777,10 +877,12 @@ function render(){
 function hotVideos(chans,ms){
   const now=Date.now(),days=+S.hotDays,min=+S.hotMin,rows=[];
   for(const c of chans){
-    const m=ms.get(c.id);if(!m||(!m.base&&min>0))continue;
+    const m=ms.get(c.id);if(!m)continue;
     for(const v of vidsOf(c)){
       if(now-v.p>days*DAY)continue;
-      const mult=m.base?v.v/m.base:0;if(min>0&&mult<min)continue;
+      const sh=isShortV(v);if((S.hotType==='long'&&sh)||(S.hotType==='shorts'&&!sh))continue;
+      const b=m.baseFor(v);if(!b&&min>0)continue;
+      const mult=b?v.v/b:0;if(min>0&&mult<min)continue;
       rows.push({c,v,mult,vph:v.v/Math.max(1,(now-v.p)/HOUR)});
     }
   }
@@ -799,31 +901,31 @@ function renderFavs(){
   const now=Date.now();let out='',shown=0;
   for(const c of list){
     const m=metrics(c);
-    let vids=(c.vids||[]).filter(v=>matchQ(v.t)||matchQ(c.title));
+    let vids=vidsOf(c).filter(v=>matchQ(v.t)||matchQ(c.title));
     if(!vids.length&&Q)continue;shown++;
     vids=[...vids].sort((a,b)=>S.favSort==='views'?b.v-a.v:b.p-a.p);
     const url='https://www.youtube.com/channel/'+c.id;
-    const tot=(c.vids||[]).filter(v=>now-v.p<30*DAY).reduce((a,v)=>a+v.v,0);
+    const tot=vidsOf(c).filter(v=>now-v.p<30*DAY).reduce((a,v)=>a+v.v,0);
     out+=`<section class="fsec"><div class="fhead">
       <div class="cname">${c.thumb?`<img src="${esc(c.thumb)}" alt="">`:'<img alt="">'}<div style="min-width:0">
         <div class="t"><a href="${url}" target="_blank" rel="noopener">${esc(c.title||c.id)}</a></div>
-        <div class="h"><span class="pill p-${m.st}">${LABEL[m.st]}</span> ${esc(c.group||'')}</div></div></div>
+        <div class="h"><span class="pill p-${m.st}">${LABEL[m.st]}</span> ${esc(c.group||'')}<span class="ftag">${FMT[chFmt(c)]}</span></div></div></div>
       <div class="fstats">
         <div><div class="k">Subscribers</div><div class="v">${c.stats&&c.stats.s!=null?fmt(c.stats.s):'hidden'}</div></div>
         <div><div class="k">Views, last 30 days</div><div class="v">${fmt(tot)}</div></div>
-        <div><div class="k">Typical views</div><div class="v">${fmt(m.base)}</div></div>
+        <div><div class="k">Typical views</div><div class="v">${typicalHtml(c,m)}</div></div>
         <div><div class="k">Uploads</div><div class="v">${m.upw.toFixed(1)}/wk</div></div>
         <div><div class="k">Last upload</div><div class="v">${ago(m.lastUp)}</div></div>
       </div>
       <button class="favbtn on" data-fav="${c.id}" aria-label="Remove from favourites" aria-pressed="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9z"/></svg></button></div>`;
     if(!vids.length){out+=`<div class="empty">No videos loaded yet. Press "Check favourites now".</div></section>`;continue}
     out+='<div class="grid">'+vids.map(v=>{
-      const vurl='https://www.youtube.com/watch?v='+v.id,mult=m.base?v.v/m.base:0,sv=isSaved(v.id);
+      const vurl='https://www.youtube.com/watch?v='+v.id,b=m.baseFor(v),mult=b?v.v/b:0,sv=isSaved(v.id);
       ROWS[v.id]={c,v,mult};
       return `<div class="vcard">
         <a class="thumb" href="${vurl}" target="_blank" rel="noopener"><img loading="lazy" src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="">
           ${mult>=1.5?`<span class="mult" style="background:${multColor(mult)}">${mult>=10?Math.round(mult):mult.toFixed(1)}x normal</span>`:''}
-          ${v.d&&v.d<=S.shortsMax?'<span class="short">Short</span>':''}<span class="age">${ago(v.p)}</span></a>
+          ${isShortV(v)?'<span class="short">Short</span>':''}<span class="age">${ago(v.p)}</span></a>
         <div class="vbody">
           <a class="vtitle" href="${vurl}" target="_blank" rel="noopener">${esc(v.t)}</a>
           <div class="vmeta"><span><b>${fmt(v.v)}</b> views</span><span><b>${fmt(v.v/Math.max(1,(now-v.p)/HOUR))}</b>/hr</span><span><b>${fmt(v.l)}</b> likes</span></div>
@@ -835,14 +937,22 @@ function renderFavs(){
 function renderIdeas(){
   const el=$('#ideaList');
   const list=S.ideas.filter(i=>matchQ(i.t)||matchQ(i.ch)||matchQ(i.note));
-  if(!S.ideas.length){el.innerHTML='<div class="empty"><h3>No saved ideas yet</h3>Press "Save idea" on any breakout video to collect it here with your own notes.</div>';return}
+  if(!S.ideas.length){el.innerHTML='<div class="empty"><h3>No saved ideas yet</h3>Press "Save idea" on any breakout video, or paste video and Shorts links with "+ Add", to collect them here with your own notes.</div>';return}
   if(!list.length){el.innerHTML='<div class="empty"><h3>Nothing matches your search</h3></div>';return}
-  el.innerHTML='<div class="ilist">'+[...list].sort((a,b)=>b.saved-a.saved).map(i=>{const url='https://www.youtube.com/watch?v='+i.id;return `<div class="idea">
-    <a class="thumb" href="${url}" target="_blank" rel="noopener"><img loading="lazy" src="https://i.ytimg.com/vi/${i.id}/mqdefault.jpg" alt="">${i.mult?`<span class="mult" style="background:${multColor(i.mult)}">${i.mult>=10?Math.round(i.mult):(+i.mult).toFixed(1)}x</span>`:''}</a>
+  el.innerHTML='<div class="ilist">'+[...list].sort((a,b)=>b.saved-a.saved).map(i=>{
+    const url='https://www.youtube.com/watch?v='+i.id;
+    const ch=i.chId&&S.channels[i.chId];
+    let mult=i.mult;
+    if(ch&&i.d!=null){const vv={v:i.v,d:i.d,s:i.s};const b=metrics(ch).baseFor(vv);if(b)mult=i.v/b}
+    const gain=i.v0!=null&&i.v>i.v0?i.v-i.v0:0;
+    const short=i.s!=null?i.s:(i.d>0&&i.d<=180);
+    const track=i.chId&&!ch?`<button class="btn sm" data-trackch="${esc(i.chId)}" data-trackfmt="${short?'shorts':''}">+ Track this channel</button>`:'';
+    return `<div class="idea">
+    <a class="thumb" href="${url}" target="_blank" rel="noopener"><img loading="lazy" src="https://i.ytimg.com/vi/${i.id}/mqdefault.jpg" alt="">${mult>=1.5?`<span class="mult" style="background:${multColor(mult)}">${mult>=10?Math.round(mult):(+mult).toFixed(1)}x</span>`:''}${short&&i.d!=null?'<span class="short">Short</span>':''}</a>
     <div style="min-width:0"><a class="vtitle" href="${url}" target="_blank" rel="noopener">${esc(i.t)}</a>
-      <div class="vmeta" style="margin-top:6px"><span>${esc(i.ch)}</span><span><b>${fmt(i.v)}</b> views</span><span>saved ${ago(i.saved)}</span></div>
+      <div class="vmeta" style="margin-top:6px"><span>${esc(i.ch)}</span><span><b>${fmt(i.v)}</b> views</span>${gain?`<span class="gain">+${fmt(gain)} since saved</span>`:''}${i.p?`<span>posted ${ago(i.p)}</span>`:''}<span>saved ${ago(i.saved)}</span></div>
       <textarea data-note="${i.id}" aria-label="Your notes" placeholder="Your notes, e.g. how to do this for your channel">${esc(i.note||'')}</textarea></div>
-    <button class="btn sm danger" data-delidea="${i.id}">Remove</button></div>`}).join('')+'</div>';
+    <div style="display:flex;flex-direction:column;gap:6px">${track}<button class="btn sm danger" data-delidea="${i.id}">Remove</button></div></div>`}).join('')+'</div>';
 }
 function emptyState(){
   if(!S.apiKey)return `<div class="empty"><h3>Add your YouTube API key to start</h3>It's free and takes a couple of minutes.<br><br><button class="btn pri" data-a="settings">Open settings</button></div>`;
@@ -860,7 +970,7 @@ function renderHot(rows,chans){
     return `<div class="vcard">
       <a class="thumb" href="${url}" target="_blank" rel="noopener"><img loading="lazy" src="https://i.ytimg.com/vi/${r.v.id}/mqdefault.jpg" alt="">
         ${r.mult?`<span class="mult" style="background:${multColor(r.mult)}">${r.mult>=10?Math.round(r.mult):r.mult.toFixed(1)}x normal</span>`:''}
-        <span class="age">${ago(r.v.p)}${young?' · early':''}</span>${isNew(r)?'<span class="new">NEW</span>':''}</a>
+        ${isShortV(r.v)?'<span class="short">Short</span>':''}<span class="age">${ago(r.v.p)}${young?' · early':''}</span>${isNew(r)?'<span class="new">NEW</span>':''}</a>
       <div class="vbody">
         <a class="vtitle" href="${url}" target="_blank" rel="noopener">${esc(r.v.t)}</a>
         <div class="vch">${r.c.thumb?`<img src="${esc(r.c.thumb)}" alt="">`:''}${esc(r.c.title||r.c.id)}</div>
@@ -893,14 +1003,14 @@ function renderChannels(chans,ms){
     return `<div class="crow">
       <div class="cname">${c.thumb?`<img src="${esc(c.thumb)}" alt="">`:'<img alt="">'}<div style="min-width:0">
         <div class="t"><a href="${url}" target="_blank" rel="noopener">${esc(c.title||c.id)}</a></div>
-        <div class="h">${esc(c.group||'')}${c.handle?' · '+esc(c.handle):''} ${c.missing?'<span class="down">· not found</span>':''}</div></div></div>
+        <div class="h">${esc(c.group||'')}${c.handle?' · '+esc(c.handle):''}<span class="ftag">${FMT[chFmt(c)]}</span> ${c.missing?'<span class="down">· not found</span>':''}</div></div></div>
       <div class="cell cstatus"><span class="pill p-${m.st}">${LABEL[m.st]}</span></div>
       <div class="cell"><div class="k">Subscribers</div><div class="v">${c.stats&&c.stats.s!=null?fmt(c.stats.s):'hidden'}</div></div>
       <div class="cell"><div class="k">Subs gained</div><div class="v">${g}</div></div>
-      <div class="cell"><div class="k">Typical views</div><div class="v">${fmt(m.base)}</div></div>
+      <div class="cell"><div class="k">Typical views</div><div class="v">${typicalHtml(c,m)}</div></div>
       <div class="cell"><div class="k">Momentum</div><div class="v">${mom}</div></div>
       <div class="cell"><div class="k">Best (30d) · uploads</div><div class="v">${best} <span style="color:var(--mute);font-weight:400;font-size:12px">· ${m.upw.toFixed(1)}/wk · last ${ago(m.lastUp)}</span></div></div>
-      <div class="cact"><button class="favbtn${isFav(c.id)?' on':''}" data-fav="${c.id}" aria-label="${isFav(c.id)?'Remove from favourites':'Add to favourites'}" aria-pressed="${isFav(c.id)}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9z"/></svg></button><select data-move="${c.id}" aria-label="Move to group">${opts}</select><button class="btn sm danger" data-remove="${c.id}">Remove</button></div>
+      <div class="cact"><button class="favbtn${isFav(c.id)?' on':''}" data-fav="${c.id}" aria-label="${isFav(c.id)?'Remove from favourites':'Add to favourites'}" aria-pressed="${isFav(c.id)}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.8l6.5-.9z"/></svg></button><select data-fmt="${c.id}" aria-label="What to track">${Object.keys(FMT).map(f=>`<option value="${f}"${f===chFmt(c)?' selected':''}>${FMT[f]}</option>`).join('')}</select><select data-move="${c.id}" aria-label="Move to group">${opts}</select><button class="btn sm danger" data-remove="${c.id}">Remove</button></div>
     </div>`;
   }).join('')+'</div>';
 }
@@ -910,7 +1020,7 @@ function openSettings(){
   fillSettings();renderGroups();S.view='settings';save();render();window.scrollTo(0,0);
 }
 function fillSettings(){
-  $('#apiKey').value=S.apiKey;$('#incShorts').checked=S.includeShorts;$('#shortsMax').value=S.shortsMax;$('#autoCheck').checked=S.autoCheck;
+  $('#apiKey').value=S.apiKey;$('#autoCheck').checked=S.autoCheck;
   $('#fbCfg').value=S.fbConfig?JSON.stringify(S.fbConfig,null,2):'';$('#fbSetup').open=!S.fbConfig;syncUI();
 }
 function renderGroups(){
@@ -927,14 +1037,16 @@ function addGroup(name){
 
 /* ---------- Events ---------- */
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-a],[data-tab],[data-fav],[data-remove],[data-delgroup],[data-save],[data-delidea],[data-group],[data-set],[data-accent]');
+  const t=e.target.closest('[data-a],[data-tab],[data-fav],[data-remove],[data-delgroup],[data-save],[data-delidea],[data-group],[data-set],[data-accent],[data-trackch],[data-addfmt]');
   if(!t){if(e.target.classList.contains('modal'))e.target.classList.remove('on');return}
   if(t.dataset.tab){if(t.dataset.tab==='settings'){openSettings();return}S.view=t.dataset.tab;save();render();window.scrollTo(0,0);return}
   if(t.dataset.group){S.group=t.dataset.group;save();fillGroupSelects();render();return}
   if(t.dataset.set){S[t.dataset.set]=t.dataset.val;save();applyTheme();render();return}
+  if(t.dataset.addfmt){addFmt=t.dataset.addfmt;markAddFmt();return}
+  if(t.dataset.trackch){trackChannel(t.dataset.trackch,t.dataset.trackfmt);return}
   if(t.dataset.accent){S.accent=t.dataset.accent;save();applyTheme();return}
   if(t.dataset.fav){const id=t.dataset.fav;if(isFav(id)){S.favs=S.favs.filter(x=>x!==id);toast('Removed from favourites')}else{S.favs.push(id);toast('Added to favourites')}save();render();return}
-  if(t.dataset.save){const id=t.dataset.save;if(isSaved(id)){S.ideas=S.ideas.filter(i=>i.id!==id);toast('Removed from ideas')}else{const r=ROWS[id];if(r){S.ideas.push({id,t:r.v.t,ch:r.c.title||'',v:r.v.v,mult:r.mult,saved:Date.now(),note:''});toast('Saved to Ideas')}}save();render();return}
+  if(t.dataset.save){const id=t.dataset.save;if(isSaved(id)){S.ideas=S.ideas.filter(i=>i.id!==id);toast('Removed from ideas')}else{const r=ROWS[id];if(r){S.ideas.push({id,t:r.v.t,ch:r.c.title||'',chId:r.c.id,v:r.v.v,v0:r.v.v,l:r.v.l,p:r.v.p,d:r.v.d,s:isShortV(r.v),mult:r.mult,saved:Date.now(),upd:Date.now(),note:''});toast('Saved to Ideas')}}save();render();return}
   if(t.dataset.delidea){if(confirm('Remove this idea and its notes?')){S.ideas=S.ideas.filter(i=>i.id!==t.dataset.delidea);save();render()}return}
   if(t.dataset.remove){const c=S.channels[t.dataset.remove];if(confirm('Remove '+(c.title||c.id)+'?')){S.favs=S.favs.filter(x=>x!==t.dataset.remove);delete S.channels[t.dataset.remove];save();fillGroupSelects();render()}return}
   if(t.dataset.delgroup){
@@ -943,11 +1055,12 @@ document.addEventListener('click',e=>{
     save();renderGroups();fillGroupSelects();render();return;
   }
   const a=t.dataset.a;
-  if(a==='add'){fillGroupSelects();$('#addLog').style.display='none';$('#addModal').classList.add('on');setTimeout(()=>$('#addInput').focus(),50)}
+  if(a==='add'){fillGroupSelects();addFmt=S.defFmt||'long';markAddFmt();$('#addLog').style.display='none';$('#addModal').classList.add('on');setTimeout(()=>$('#addInput').focus(),50)}
   else if(a==='close'){t.closest('.modal').classList.remove('on')}
   else if(a==='doAdd')doAdd();
   else if(a==='refreshFavs'){const ids=S.favs.filter(id=>S.channels[id]);if(ids.length)refresh(ids);else toast('Add some favourites first')}
-  else if(a==='refresh'){const ids=groupChannels().map(c=>c.id);refresh(ids.length?ids:undefined)}
+  else if(a==='refresh'){const ids=groupChannels().map(c=>c.id);refresh(ids.length?ids:undefined,{ideas:true})}
+  else if(a==='refreshIdeas'){if(S.ideas.length)refresh([],{ideas:true});else toast('No saved videos yet')}
   else if(a==='settings')openSettings();
   else if(a==='newGroupChip'){const n=prompt('New group name');if(n)addGroup(n)}
   else if(a==='addGroup'){if(addGroup($('#ngName').value))$('#ngName').value=''}
@@ -958,8 +1071,7 @@ document.addEventListener('click',e=>{
   else if(a==='fbClear'){if(confirm('Go back to the built-in Firebase config on this device?')){S.fbConfig=BUILTIN_FB;save();if(FB.auth)FB.auth.signOut().finally(()=>location.reload());else location.reload()}}
   else if(a==='toggleKey'){const k=$('#apiKey');k.type=k.type==='password'?'text':'password';t.textContent=k.type==='password'?'Show':'Hide'}
   else if(a==='saveSettings'){
-    S.apiKey=$('#apiKey').value.trim();S.includeShorts=$('#incShorts').checked;
-    S.shortsMax=Math.max(30,Math.min(600,+$('#shortsMax').value||180));S.autoCheck=$('#autoCheck').checked;
+    S.apiKey=$('#apiKey').value.trim();S.autoCheck=$('#autoCheck').checked;
     save();syncUI();render();toast('Settings saved');
   }
   else if(a==='export'){
@@ -975,11 +1087,11 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
   const t=e.target;
+  if(t.dataset.fmt){const c=S.channels[t.dataset.fmt];if(!c)return;c.fmt=t.value;save();render();toast('Now tracking '+FMT[c.fmt].toLowerCase()+' for '+(c.title||'this channel'));if(S.apiKey)refresh([c.id]);return}
   if(t.dataset.move){S.channels[t.dataset.move].group=t.value;save();fillGroupSelects();render();return}
   if(t.id==='addGroup'){$('#newGroup').style.display=t.value==='__new'?'block':'none';if(t.value==='__new')$('#newGroup').focus()}
   else if(['hotDays','chSort'].includes(t.id)){S[t.id]=t.value;save();render()}
-  else if(t.id==='incShorts'||t.id==='autoCheck'){S[t.id==='incShorts'?'includeShorts':'autoCheck']=t.checked;save();render()}
-  else if(t.id==='shortsMax'){S.shortsMax=Math.max(30,Math.min(600,+t.value||180));save();render()}
+  else if(t.id==='autoCheck'){S.autoCheck=t.checked;save();render()}
   else if(t.id==='importFile'&&t.files[0]){
     const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.channels)throw 0;const key=S.apiKey,cfg=S.fbConfig;S=Object.assign({},DEF,d);if(!S.apiKey)S.apiKey=key;if(!S.fbConfig)S.fbConfig=cfg;save();fillGroupSelects();renderGroups();applyTheme();render();toast('Backup imported')}catch(err){toast('That file is not a Channel Radar backup',true)}};
     r.readAsText(t.files[0]);t.value='';
@@ -999,6 +1111,7 @@ function applyTheme(){
   document.body.classList.toggle('dense',S.density==='compact');
   $('#swatches').innerHTML=Object.keys(ACC).map(k=>`<button class="swatch${(S.accent||'red')===k?' on':''}" style="background:${ACC[k][0]}" data-accent="${k}" aria-label="${ACC[k][2]}" aria-pressed="${(S.accent||'red')===k}"></button>`).join('');
 }
+if(!S.defFmt)S.defFmt=S.includeShorts?'both':'long';
 S.prevVisit=S.visit||0;S.visit=Date.now();
 if(S.startView&&S.startView!=='last')S.view=S.startView;
 if(!VIEWS[S.view]||S.view==='settings')S.view=S.view==='settings'?'settings':'hot';
@@ -1007,7 +1120,7 @@ applyTheme();fillGroupSelects();
 if(S.view==='settings')openSettings();else render();
 if(!S.fbConfig)S.fbConfig=BUILTIN_FB;lastSig=sig();delete S.gClientId;delete S.gSigned;syncUI();fbInit();setInterval(syncUI,30000);
 setInterval(()=>{$('#lastCheck').textContent=ago(S.lastCheck)},60000);
-if(S.autoCheck&&S.apiKey&&Object.keys(S.channels).length&&Date.now()-S.lastCheck>6*HOUR)refresh();
+if(S.autoCheck&&S.apiKey&&Object.keys(S.channels).length&&Date.now()-S.lastCheck>6*HOUR)refresh(undefined,{ideas:true});
 </script>
 </body>
 </html>
