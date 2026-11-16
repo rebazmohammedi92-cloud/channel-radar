@@ -110,7 +110,7 @@ main{flex:1 1 auto;min-width:0;padding:24px 24px 48px}
 html[data-theme=light] .btn.saved{color:var(--text)}
 
 /* channels */
-.ctable{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.ctable{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
 .chead,.crow{display:grid;grid-template-columns:minmax(220px,2fr) 110px 100px minmax(120px,1.2fr) 100px 100px minmax(140px,1.2fr) auto;gap:12px;align-items:center;padding:12px 18px}
 .chead{color:var(--mute);font-size:12px;font-weight:600;border-bottom:1px solid var(--line)}
 .crow{border-bottom:1px solid var(--line)}
@@ -197,7 +197,7 @@ body.dense .stat{padding:10px 14px}
 body.dense .stat .v{font-size:22px}
 body.dense .grid{gap:12px}
 
-@media (max-width:1100px){
+@media (max-width:1360px){
   .chead{display:none}
   .crow{grid-template-columns:repeat(3,minmax(0,1fr));padding:14px 16px}
   .crow .cname{grid-column:1/-1}
